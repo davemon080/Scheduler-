@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <!-- Definitions of vibrant gradients and glows -->
+  <defs>
+    <radialGradient id="bgGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#312e81" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#020617" stop-opacity="1"/>
+    </radialGradient>
+    <linearGradient id="flaskGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#818cf8"/>
+      <stop offset="50%" stop-color="#4f46e5"/>
+      <stop offset="100%" stop-color="#312e81"/>
+    </linearGradient>
+    <linearGradient id="liquidGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="60%" stop-color="#059669"/>
+      <stop offset="100%" stop-color="#064e3b"/>
+    </linearGradient>
+    <linearGradient id="foamGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#34d399"/>
+      <stop offset="50%" stop-color="#a7f3d0"/>
+      <stop offset="100%" stop-color="#34d399"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="15" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Deep Cosmic Background -->
+  <rect width="100%" height="100%" fill="url(#bgGlow)" rx="112" />
+
+  <!-- Outer Ring Elements (Chemical orbit path) -->
+  <circle cx="256" cy="256" r="190" fill="none" stroke="#4f46e5" stroke-width="4" stroke-opacity="0.3" stroke-dasharray="16 12" />
+  <circle cx="256" cy="256" r="190" fill="none" stroke="#10b981" stroke-width="2" stroke-opacity="0.2" stroke-dasharray="4 8" />
+
+  <!-- Orbiting atomic electron paths -->
+  <circle cx="390" cy="160" r="12" fill="#10b981" filter="url(#glow)"/>
+  <circle cx="122" cy="352" r="8" fill="#818cf8" filter="url(#glow)"/>
+
+  <!-- Glowing background aura behind the chemistry flask -->
+  <circle cx="256" cy="270" r="90" fill="#4f46e5" opacity="0.15" filter="url(#glow)" />
+
+  <!-- The Styled Chemistry Erlenmeyer Flask -->
+  <g filter="url(#glow)">
+    <!-- Liquid inside the flask -->
+    <path d="M 205 350 L 307 350 C 314 350 345 390 355 408 C 360 417 353 428 342 428 L 170 428 C 159 428 152 417 157 408 C 167 390 198 350 205 350 Z" fill="url(#liquidGrad)" />
+    
+    <!-- Bubbles/Foam Top layer inside liquid -->
+    <ellipse cx="256" cy="350" rx="51" ry="8" fill="url(#foamGrad)" />
+    
+    <!-- Bubble circles rising up inside flask/liquid -->
+    <circle cx="230" cy="325" r="7" fill="#34d399" opacity="0.8"/>
+    <circle cx="280" cy="300" r="10" fill="#10b981" opacity="0.6"/>
+    <circle cx="250" cy="270" r="6" fill="#6ee7b7" opacity="0.9"/>
+    <circle cx="270" cy="340" r="4" fill="#a7f3d0" opacity="0.7"/>
+    <circle cx="215" cy="370" r="5" fill="#34d399" opacity="0.5"/>
+
+    <!-- Main Glass Outlines representing structure -->
+    <!-- Flask Neck and lip -->
+    <rect x="234" y="140" width="44" height="110" fill="none" stroke="url(#flaskGrad)" stroke-width="12" stroke-linejoin="round" />
+    <ellipse cx="256" cy="140" rx="28" ry="8" fill="none" stroke="url(#flaskGrad)" stroke-width="12" />
+    
+    <!-- Main Body triangles -->
+    <path d="M 234 230 L 160 395 C 145 428 168 440 200 440 L 312 440 C 344 440 367 428 352 395 L 278 230" fill="none" stroke="url(#flaskGrad)" stroke-width="12" stroke-linejoin="round" stroke-linecap="round" />
+    
+    <!-- Internal measurement markings (gradated lines) on the side -->
+    <line x1="285" y1="280" x2="300" y2="280" stroke="#818cf8" stroke-width="4" stroke-opacity="0.8" />
+    <line x1="290" y1="315" x2="310" y2="315" stroke="#818cf8" stroke-width="4" stroke-opacity="0.8" />
+    <line x1="295" y1="350" x2="320" y2="350" stroke="#818cf8" stroke-width="4" stroke-opacity="0.8" />
+
+    <!-- Glass Refraction Highlight (White curved reflection along Left side) -->
+    <path d="M 172 398 L 228 244" stroke="#ffffff" stroke-width="6" stroke-linecap="round" stroke-opacity="0.4" />
+  </g>
+</svg>

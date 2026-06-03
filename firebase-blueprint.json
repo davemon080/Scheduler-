@@ -1,0 +1,393 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User account registrations within the department",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "description": "Student email address"
+        },
+        "matricNumber": {
+          "type": "string",
+          "description": "Student matriculation identifier"
+        },
+        "name": {
+          "type": "string",
+          "description": "Student full official name"
+        },
+        "password": {
+          "type": "string",
+          "description": "Locked password hash or text"
+        },
+        "departmentId": {
+          "type": "string",
+          "description": "Identified matched department code string"
+        }
+      },
+      "required": ["email", "matricNumber", "name", "password"]
+    },
+    "Department": {
+      "title": "Department",
+      "description": "Academic department configured with specified Matric number pattern mapping",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "prefix": {
+          "type": "string"
+        },
+        "courseRepMatric": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string"
+        }
+      },
+      "required": ["id", "name", "prefix"]
+    },
+    "Activity": {
+      "title": "Activity",
+      "description": "Scheduled lecture, lab, or tutorial sessions",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "timeStart": {
+          "type": "string"
+        },
+        "timeEnd": {
+          "type": "string"
+        },
+        "day": {
+          "type": "string"
+        },
+        "location": {
+          "type": "string"
+        },
+        "courseCode": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string"
+        },
+        "createdBy": {
+          "type": "string"
+        },
+        "departmentId": {
+          "type": "string"
+        }
+      },
+      "required": ["id", "title", "timeStart", "timeEnd", "day", "location", "courseCode", "category", "createdBy"]
+    },
+    "Deadline": {
+      "title": "Deadline",
+      "description": "Assignment submissions and task deadlines",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "courseCode": {
+          "type": "string"
+        },
+        "dueDate": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "isCompleted": {
+          "type": "boolean"
+        },
+        "imageUrl": {
+          "type": "string"
+        },
+        "createdBy": {
+          "type": "string"
+        },
+        "departmentId": {
+          "type": "string"
+        }
+      },
+      "required": ["id", "title", "courseCode", "dueDate", "isCompleted", "createdBy"]
+    },
+    "Announcement": {
+      "title": "Announcement",
+      "description": "Urgent notifications broadcasted by Course Representatives",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        },
+        "date": {
+          "type": "string"
+        },
+        "priority": {
+          "type": "string"
+        },
+        "imageUrl": {
+          "type": "string"
+        },
+        "author": {
+          "type": "string"
+        },
+        "departmentId": {
+          "type": "string"
+        }
+      },
+      "required": ["id", "title", "content", "date", "priority", "author"]
+    },
+    "Subscription": {
+      "title": "Subscription",
+      "description": "Payment monthly subscription records to unlock portal",
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["active", "inactive"]
+        },
+        "matricNumber": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "lastPaymentDate": {
+          "type": "string"
+        },
+        "expiryDate": {
+          "type": "string"
+        },
+        "reference": {
+          "type": "string"
+        },
+        "amountPaid": {
+          "type": "number"
+        }
+      },
+      "required": ["status", "matricNumber", "email", "name", "lastPaymentDate", "expiryDate", "reference", "amountPaid"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "Audit record of each individual transaction made",
+      "type": "object",
+      "properties": {
+        "reference": {
+          "type": "string"
+        },
+        "matricNumber": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "amount": {
+          "type": "number"
+        },
+        "paidAt": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "required": ["reference", "matricNumber", "email", "name", "amount", "paidAt", "status"]
+    },
+    "Course": {
+      "title": "Course",
+      "description": "Academic course offering added by Course Reps",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "courseCode": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "createdBy": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string"
+        }
+      },
+      "required": ["id", "courseCode", "title", "createdBy", "createdAt"]
+    },
+    "PdfModule": {
+      "title": "PdfModule",
+      "description": "Course syllabus reference PDF uploaded by Reps",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "pdfUrl": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "uploadedAt": {
+          "type": "string"
+        },
+        "createdBy": {
+          "type": "string"
+        }
+      },
+      "required": ["id", "title", "pdfUrl", "uploadedAt"]
+    },
+    "Device": {
+      "title": "Device",
+      "description": "Device installation registry details for PWA and home screen tracking",
+      "type": "object",
+      "properties": {
+        "deviceId": { "type": "string" },
+        "matricNumber": { "type": "string" },
+        "name": { "type": "string" },
+        "isStandalone": { "type": "boolean" },
+        "platform": { "type": "string" },
+        "userAgent": { "type": "string" },
+        "pushPermission": { "type": "string" },
+        "isInstalled": { "type": "boolean" },
+        "registeredAt": { "type": "string" },
+        "lastActiveAt": { "type": "string" }
+      },
+      "required": ["deviceId", "matricNumber", "isStandalone", "platform", "registeredAt", "lastActiveAt"]
+    },
+    "PushSubscription": {
+      "title": "PushSubscription",
+      "description": "Web Push protocol client subscriptions for background messaging",
+      "type": "object",
+      "properties": {
+        "subscription": { "type": "object" },
+        "matricNumber": { "type": "string" },
+        "endpoint": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "isStandalone": { "type": "boolean" },
+        "platform": { "type": "string" },
+        "name": { "type": "string" }
+      },
+      "required": ["subscription", "matricNumber", "endpoint", "createdAt"]
+    },
+    "Feedback": {
+      "title": "Feedback",
+      "description": "Student feedback submission, suggestions, or reports sent to administrators",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "matricNumber": {
+          "type": "string"
+        },
+        "studentName": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["unread", "read", "replied"]
+        }
+      },
+      "required": ["id", "matricNumber", "studentName", "email", "subject", "message", "createdAt", "status"]
+    }
+  },
+  "firestore": {
+    "users/{matricNumber}": {
+      "schema": "User",
+      "description": "User directory profiles"
+    },
+    "subscriptions/{matricNumber}": {
+      "schema": "Subscription",
+      "description": "Student subscription statuses"
+    },
+    "payments/{paymentId}": {
+      "schema": "Payment",
+      "description": "Chronological log of successful transactions"
+    },
+    "courses/{courseId}": {
+      "schema": "Course",
+      "description": "Academic courses offered"
+    },
+    "courses/{courseId}/pdf-modules/{moduleId}": {
+      "schema": "PdfModule",
+      "description": "Syllabus resource PDF folders"
+    },
+    "activities/{activityId}": {
+      "schema": "Activity",
+      "description": "Class scheduled activities"
+    },
+    "deadlines/{deadlineId}": {
+      "schema": "Deadline",
+      "description": "Deadlines checklist"
+    },
+    "announcements/{announcementId}": {
+      "schema": "Announcement",
+      "description": "Bulletins and announcements"
+    },
+    "devices/{deviceId}": {
+      "schema": "Device",
+      "description": "PWA and Web App device installation records"
+    },
+    "push-subscriptions/{subscriptionId}": {
+      "schema": "PushSubscription",
+      "description": "Client background messaging endpoints"
+    },
+    "feedbacks/{feedbackId}": {
+      "schema": "Feedback",
+      "description": "Course and app feedback entries from students"
+    },
+    "departments/{departmentId}": {
+      "schema": "Department",
+      "description": "Academic department configurations"
+    }
+  }
+}

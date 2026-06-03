@@ -1,0 +1,102 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Default safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128;
+    }
+
+    // Users collection
+    match /users/{matricNumber} {
+      allow read: if true;
+      allow create, update: if isValidId(matricNumber) && isValidId(request.resource.data.matricNumber);
+      allow delete: if isValidId(matricNumber);
+    }
+
+    // Subscriptions collection
+    match /subscriptions/{matricNumber} {
+      allow read: if true;
+      allow create, update: if isValidId(matricNumber) && isValidId(request.resource.data.matricNumber);
+      allow delete: if isValidId(matricNumber);
+    }
+
+    // Payments collection
+    match /payments/{paymentId} {
+      allow read: if true;
+      allow create, update: if isValidId(paymentId) && isValidId(request.resource.data.matricNumber);
+    }
+
+    // System config collection
+    match /system-config/{configId} {
+      allow read: if true;
+      allow create, update: if isValidId(configId);
+    }
+
+    // Activities collection
+    match /activities/{activityId} {
+      allow read: if true;
+      allow create, update, delete: if isValidId(activityId);
+    }
+
+    // Deadlines collection
+    match /deadlines/{deadlineId} {
+      allow read: if true;
+      allow create, update, delete: if isValidId(deadlineId);
+    }
+
+    // Announcements collection
+    match /announcements/{announcementId} {
+      allow read: if true;
+      allow create, update, delete: if isValidId(announcementId);
+    }
+
+    // Courses and nested PDF modules
+    match /courses/{courseId} {
+      allow read: if true;
+      allow create, update, delete: if isValidId(courseId);
+
+      match /pdf-modules/{moduleId} {
+        allow read: if true;
+        allow create, update, delete: if isValidId(moduleId);
+      }
+    }
+
+    // Collection group rules for nested PDF modules
+    match /{path=**}/pdf-modules/{moduleId} {
+      allow read: if true;
+      allow create, update, delete: if isValidId(moduleId);
+    }
+
+    // Push Config stable metadata rules
+    match /push-config/{configId} {
+      allow read, write: if true;
+    }
+
+    // Push Subscriptions collection
+    match /push-subscriptions/{subscriptionId} {
+      allow read, write: if true;
+    }
+
+    // Devices installation tracking collection
+    match /devices/{deviceId} {
+      allow read: if true;
+      allow create, update: if isValidId(deviceId);
+    }
+
+    // Feedbacks collection
+    match /feedbacks/{feedbackId} {
+      allow read, write: if isValidId(feedbackId);
+    }
+
+    // Departments collection
+    match /departments/{departmentId} {
+      allow read: if true;
+      allow create, update, delete: if isValidId(departmentId);
+    }
+  }
+}
