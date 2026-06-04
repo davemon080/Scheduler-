@@ -252,8 +252,8 @@ export default function AdminDashboard({
       
       // Sort: Admins and Course Reps first, then newest registered
       finalUsers.sort((a, b) => {
-        const scoreA = (a.isAdmin ? 10 : 0) + (a.isCourseRep || a.matricNumber === '2025/ps/ich/0034' ? 5 : 0);
-        const scoreB = (b.isAdmin ? 10 : 0) + (b.isCourseRep || b.matricNumber === '2025/ps/ich/0034' ? 5 : 0);
+        const scoreA = (a.isAdmin ? 10 : 0) + (a.isCourseRep ? 5 : 0);
+        const scoreB = (b.isAdmin ? 10 : 0) + (b.isCourseRep ? 5 : 0);
         if (scoreA !== scoreB) {
           return scoreB - scoreA;
         }
@@ -1207,7 +1207,7 @@ export default function AdminDashboard({
 
   // Calculate totals for KPI widgets
   const totalUserCount = users.length;
-  const courseRepCount = users.filter(u => u.isCourseRep || u.matricNumber === '2025/ps/ich/0034').length;
+  const courseRepCount = users.filter(u => u.isCourseRep).length;
   const recentSignupsCount = users.filter(u => {
     if (!u.createdAt) return false;
     const diff = Date.now() - new Date(u.createdAt).getTime();
@@ -1548,7 +1548,7 @@ export default function AdminDashboard({
                 ) : (
                   filteredUsers.map((user) => {
                     const isCurrentAdmin = user.matricNumber === '2026/ps/ich/0034';
-                    const isUserRep = user.isCourseRep || user.matricNumber === '2025/ps/ich/0034';
+                    const isUserRep = user.isCourseRep;
                     const status = getUserStatus(user);
                     
                     return (

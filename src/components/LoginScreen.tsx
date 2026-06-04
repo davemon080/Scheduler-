@@ -14,25 +14,44 @@ import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
 const getUsersDB = () => {
   try {
     const db = localStorage.getItem('ich100l_users_db');
-    if (db) return JSON.parse(db);
-    // Seed with Course Rep password to 123456 as requested
-    const defaultDB = {
-      [DEFAULT_COURSE_REP_MATRIC]: {
-        email: 'daveimagodei@gmail.com',
-        matricNumber: DEFAULT_COURSE_REP_MATRIC,
-        name: 'David Adebayo',
-        password: '123456',
-      },
-      '2026/ps/ich/0034': {
-        email: 'admin@gmail.com',
-        matricNumber: '2026/ps/ich/0034',
-        name: 'System Admin',
-        password: '123456',
-        isAdmin: true,
+    let parsed = db ? JSON.parse(db) : null;
+    if (!parsed) {
+      parsed = {
+        [DEFAULT_COURSE_REP_MATRIC]: {
+          email: 'daveimagodei@gmail.com',
+          matricNumber: DEFAULT_COURSE_REP_MATRIC,
+          name: 'David Adebayo',
+          password: '123456',
+          isCourseRep: true,
+        },
+        '2026/ps/ich/0034': {
+          email: 'admin@gmail.com',
+          matricNumber: '2026/ps/ich/0034',
+          name: 'System Admin',
+          password: 'eroll@12',
+          isAdmin: true,
+        }
+      };
+    } else {
+      // Force admin password to be updated as requested
+      if (parsed['2026/ps/ich/0034']) {
+        parsed['2026/ps/ich/0034'].password = 'eroll@12';
+      } else {
+        parsed['2026/ps/ich/0034'] = {
+          email: 'admin@gmail.com',
+          matricNumber: '2026/ps/ich/0034',
+          name: 'System Admin',
+          password: 'eroll@12',
+          isAdmin: true,
+        };
       }
-    };
-    localStorage.setItem('ich100l_users_db', JSON.stringify(defaultDB));
-    return defaultDB;
+      // Force default course rep to have isCourseRep: true if not already set
+      if (parsed[DEFAULT_COURSE_REP_MATRIC] && parsed[DEFAULT_COURSE_REP_MATRIC].isCourseRep === undefined) {
+        parsed[DEFAULT_COURSE_REP_MATRIC].isCourseRep = true;
+      }
+    }
+    localStorage.setItem('ich100l_users_db', JSON.stringify(parsed));
+    return parsed;
   } catch {
     return {};
   }
@@ -259,7 +278,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
     // Explicit Admin Sign-in Bypass / Initial Setup
     if (cleanedMatric.toLowerCase() === '2026/ps/ich/0034') {
-      if (email.trim().toLowerCase() !== 'admin@gmail.com' || password !== '123456') {
+      if (email.trim().toLowerCase() !== 'admin@gmail.com' || password !== 'eroll@12') {
         setError('Incorrect email or password for admin access.');
         setIsAuthenticating(false);
         return;
@@ -269,7 +288,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         email: 'admin@gmail.com',
         matricNumber: '2026/ps/ich/0034',
         name: 'System Admin',
-        password: '123456',
+        password: 'eroll@12',
         createdAt: new Date().toISOString(),
         activeSessionId: sessionId,
         isAdmin: true,

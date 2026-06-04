@@ -683,7 +683,7 @@ export default function App() {
       return;
     }
 
-    if (currentUser.matricNumber === DEFAULT_COURSE_REP_MATRIC || currentUser.isCourseRep === true) {
+    if (currentUser.isCourseRep === true) {
       setSubStatus('active');
       setSubscriptionDetails({
         status: 'active',
@@ -746,7 +746,7 @@ export default function App() {
       }
 
       // Check rep/admin overrides
-      const isRepOrAdmin = currentUser.isAdmin || currentUser.isCourseRep || currentUser.matricNumber === DEFAULT_COURSE_REP_MATRIC || currentUser.matricNumber === '2025/ps/ich/0034' || currentUser.matricNumber === '2026/ps/ich/0034';
+      const isRepOrAdmin = currentUser.isAdmin || currentUser.isCourseRep || currentUser.matricNumber === '2026/ps/ich/0034';
       if (isRepOrAdmin) {
         setSubStatus('active');
         setSubscriptionDetails({
@@ -910,7 +910,7 @@ export default function App() {
 
     // Safety check: ONLY the Course Representative is authorized to execute database rollovers and resets!
     // This absolutely prevents race conditions and timezone mismatches of standard students from wiping other users' data.
-    const isRep = currentUser.matricNumber === DEFAULT_COURSE_REP_MATRIC || currentUser.isCourseRep === true;
+    const isRep = currentUser.isCourseRep === true;
     if (!isRep) return;
 
     const wipeAndSeedIfNewWeek = async () => {
@@ -1534,7 +1534,7 @@ export default function App() {
     localStorage.setItem('ich100l_announcements', JSON.stringify(announcements));
   }, [announcements]);
 
-  const isCourseRep = currentUser?.matricNumber === DEFAULT_COURSE_REP_MATRIC || currentUser?.isCourseRep === true;
+  const isCourseRep = currentUser?.isCourseRep === true;
 
   // Sign out handler
   const handleLogout = () => {

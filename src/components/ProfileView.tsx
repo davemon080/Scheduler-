@@ -117,7 +117,7 @@ const urlBase64ToUint8Array = (base64String: string) => {
 };
 
 interface ProfileViewProps {
-  user: { email: string; matricNumber: string; name: string; createdAt?: string };
+  user: { email: string; matricNumber: string; name: string; createdAt?: string; isCourseRep?: boolean; isAdmin?: boolean };
   onLogout: () => void;
   onResetData: () => void;
   stats: {
@@ -148,7 +148,7 @@ export default function ProfileView({
   onClearDeferredPrompt,
   appTitle = 'ICH100L'
 }: ProfileViewProps) {
-  const isRep = user.matricNumber === DEFAULT_COURSE_REP_MATRIC;
+  const isRep = user.isCourseRep === true;
 
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
