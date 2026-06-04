@@ -327,6 +327,12 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       }
 
       if (userData && matchedRef) {
+        if (userData.email && userData.email.trim().toLowerCase() !== email.trim().toLowerCase()) {
+          setError('The provided email does not match the registered institutional email for this matriculation number.');
+          setIsAuthenticating(false);
+          return;
+        }
+
         if (userData.password !== password) {
           setError('Incorrect password for this matriculation number.');
           setIsAuthenticating(false);
@@ -366,6 +372,12 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     const existingUser = existingKey ? localDB[existingKey] : null;
 
     if (existingUser) {
+      if (existingUser.email && existingUser.email.trim().toLowerCase() !== email.trim().toLowerCase()) {
+        setError('The provided email does not match the registered institutional email for this matriculation number.');
+        setIsAuthenticating(false);
+        return;
+      }
+
       if (existingUser.password !== password) {
         setError('Incorrect password for this matriculation number.');
         setIsAuthenticating(false);

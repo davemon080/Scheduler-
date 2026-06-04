@@ -1737,6 +1737,7 @@ export default function App() {
           subStatus={subStatus}
           isCourseRep={isCourseRep}
           subscriptionDetails={subscriptionDetails}
+          semesterConfig={semesterConfig}
           onSuccessVerification={() => {
             // Hot trigger reload
             handleUpdateSubStatus();
@@ -1758,6 +1759,7 @@ export default function App() {
             subStatus={subStatus}
             isCourseRep={isCourseRep}
             subscriptionDetails={subscriptionDetails}
+            semesterConfig={semesterConfig}
             onSuccessVerification={() => {
               handleUpdateSubStatus();
             }}
