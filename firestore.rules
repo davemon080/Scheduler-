@@ -98,5 +98,10 @@ service cloud.firestore {
       allow read: if true;
       allow create, update, delete: if isValidId(departmentId);
     }
+
+    // Traffic analytics collection
+    match /traffic/{trafficId} {
+      allow read, write: if isValidId(trafficId);
+    }
   }
 }
