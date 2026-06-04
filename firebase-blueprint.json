@@ -45,6 +45,9 @@
         "courseRepMatric": {
           "type": "string"
         },
+        "level": {
+          "type": "string"
+        },
         "createdAt": {
           "type": "string"
         }

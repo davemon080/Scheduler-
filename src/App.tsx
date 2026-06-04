@@ -521,13 +521,18 @@ export default function App() {
   });
 
   const appTitle = useMemo(() => {
-    return matchedDepartment?.prefix === 'ps/chm' ? 'CHM100L' : 'ICH100L';
+    if (matchedDepartment) {
+      const abbrev = (matchedDepartment.prefix || '').split('/').pop()?.toUpperCase() || 'BCH';
+      const level = (matchedDepartment.level || '100l').toUpperCase();
+      return `${abbrev} ${level}`;
+    }
+    return 'ICH100L';
   }, [matchedDepartment]);
 
   const visibleNotifications = useMemo(() => {
     return notifications.filter((notif) => {
-      if (!notif.departmentId) return true;
-      return notif.departmentId === matchedDepartment?.id;
+      if (!matchedDepartment) return false;
+      return notif.departmentId === matchedDepartment.id;
     });
   }, [notifications, matchedDepartment]);
 
@@ -1231,6 +1236,7 @@ export default function App() {
             name: 'Industrial Chemistry',
             prefix: 'ps/ich',
             courseRepMatric: '2025/ps/ich/0034',
+            level: '100l',
             createdAt: new Date().toISOString()
           },
           {
@@ -1238,6 +1244,7 @@ export default function App() {
             name: 'Pure and Applied Chemistry',
             prefix: 'ps/chm',
             courseRepMatric: '2025/ps/chm/0034',
+            level: '100l',
             createdAt: new Date().toISOString()
           }
         ];
@@ -1260,6 +1267,7 @@ export default function App() {
           name: 'Industrial Chemistry',
           prefix: 'ps/ich',
           courseRepMatric: '2025/ps/ich/0034',
+          level: '100l',
           createdAt: new Date().toISOString()
         },
         {
@@ -1267,6 +1275,7 @@ export default function App() {
           name: 'Pure and Applied Chemistry',
           prefix: 'ps/chm',
           courseRepMatric: '2025/ps/chm/0034',
+          level: '100l',
           createdAt: new Date().toISOString()
         }
       ];
@@ -2328,10 +2337,28 @@ export default function App() {
               )}
             </button>
             <div>
-              <h1 className="text-xl font-display font-bold text-slate-100 tracking-tight leading-none font-sans">
-                {appTitle}
-              </h1>
-              <span className="text-[10px] font-mono font-medium text-slate-400">Class Board</span>
+              {matchedDepartment ? (
+                <div className="flex flex-col">
+                  <div className="flex items-center gap-1.5 h-5">
+                    <h1 className="text-base font-sans font-bold text-slate-100 tracking-tight leading-none">
+                      {((matchedDepartment.prefix || '').split('/').pop() || 'BCH').toUpperCase()}
+                    </h1>
+                    <span className="text-[9px] font-mono leading-none bg-indigo-500/15 border border-indigo-500/20 px-1.5 py-0.5 rounded text-indigo-400 font-extrabold pb-[2px]">
+                      {(matchedDepartment.level || '100l').toUpperCase()}
+                    </span>
+                  </div>
+                  <span className="text-[9px] font-sans text-slate-400 mt-1 block truncate max-w-[155px]" title={matchedDepartment.name}>
+                    {matchedDepartment.name}
+                  </span>
+                </div>
+              ) : (
+                <div className="flex flex-col">
+                  <h1 className="text-xl font-display font-bold text-slate-100 tracking-tight leading-none font-sans">
+                    {appTitle}
+                  </h1>
+                  <span className="text-[10px] font-mono font-medium text-slate-400">Class Board</span>
+                </div>
+              )}
             </div>
           </div>
 

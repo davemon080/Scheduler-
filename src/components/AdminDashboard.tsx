@@ -15,7 +15,7 @@ import {
 import GlassCard from './GlassCard';
 import FeedbackPage from './FeedbackPage';
 import { db, getSafeDocId, handleFirestoreError, OperationType } from '../lib/firebase';
-import { collection, getDocs, doc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
+import { collection, getDocs, getDoc, doc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
 
 interface AdminDashboardProps {
   currentUser: any;
@@ -61,6 +61,7 @@ export default function AdminDashboard({
   const [deptName, setDeptName] = useState('');
   const [deptPrefix, setDeptPrefix] = useState('');
   const [deptCourseRepMatric, setDeptCourseRepMatric] = useState('');
+  const [deptLevel, setDeptLevel] = useState('100l');
   const [isSavingDept, setIsSavingDept] = useState(false);
   const [editingDeptId, setEditingDeptId] = useState<string | null>(null);
 
@@ -600,6 +601,7 @@ export default function AdminDashboard({
         name: deptName.trim(),
         prefix: targetPrefix,
         courseRepMatric: deptCourseRepMatric || '',
+        level: deptLevel,
         createdAt: new Date().toISOString()
       };
 
@@ -667,6 +669,7 @@ export default function AdminDashboard({
       setDeptName('');
       setDeptPrefix('');
       setDeptCourseRepMatric('');
+      setDeptLevel('100l');
       setEditingDeptId(null);
 
       setActionFeedback({
@@ -693,6 +696,7 @@ export default function AdminDashboard({
     setDeptName(dept.name);
     setDeptPrefix(dept.prefix);
     setDeptCourseRepMatric(dept.courseRepMatric || '');
+    setDeptLevel(dept.level || '100l');
     
     // Switch to Department tab if clicked from elsewhere, though already inside it
     setActiveAdminTab('departments');
@@ -1188,14 +1192,55 @@ export default function AdminDashboard({
     setIsUpdatingSemester(true);
     setActionFeedback(null);
     try {
+      let currentEndedCount = 0;
+      try {
+        const snap = await getDoc(doc(db, 'system-config', 'semester-billing'));
+        if (snap.exists()) {
+          currentEndedCount = snap.data().endedSemestersCount || 0;
+        }
+      } catch (getErr) {
+        console.warn('[Admin] Failed to read current ended count:', getErr);
+      }
+
+      const nextEndedCount = currentEndedCount + 1;
+      let promotionTriggered = false;
+
+      if (nextEndedCount > 0 && nextEndedCount % 2 === 0) {
+        promotionTriggered = true;
+        try {
+          const deptsSnap = await getDocs(collection(db, 'departments'));
+          const promotePromises = deptsSnap.docs.map(async (deptDoc) => {
+            const deptData = deptDoc.data();
+            const currentLevel = deptData.level || '100l';
+            const match = currentLevel.match(/^(\d+)(l|L)?$/);
+            let nextLevel = currentLevel;
+            if (match) {
+              const num = parseInt(match[1], 10);
+              nextLevel = `${num + 100}${match[2] || 'l'}`;
+            } else {
+              nextLevel = '200l';
+            }
+            await setDoc(doc(db, 'departments', deptDoc.id), { level: nextLevel }, { merge: true });
+          });
+          await Promise.all(promotePromises);
+          console.log('[Admin] Automatically promoted departments to next level!');
+        } catch (promoteError) {
+          console.error('[Admin] Failed to promote departments automatically:', promoteError);
+        }
+      }
+
       await setDoc(doc(db, 'system-config', 'semester-billing'), {
         semesterActive: false,
         semesterStartedAt: null,
-        amount: 1000
+        amount: 1000,
+        endedSemestersCount: nextEndedCount
       });
+
       setActionFeedback({
         type: 'success',
-        message: 'Current semester marked as ended. Student access passport locked.'
+        message: promotionTriggered
+          ? `Current semester ended! Promotion triggered: all departments have been automatically promoted to their next academic level (e.g. 100L ➔ 200L).`
+          : `Current semester marked as ended. Student access passport locked. (${nextEndedCount} semester(s) completed on current cycle).`
       });
     } catch (err: any) {
       console.error('[Admin] Fail ending semester:', err);
@@ -1807,6 +1852,24 @@ export default function AdminDashboard({
                   </div>
 
                   <div className="space-y-1">
+                    <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 block">Department Level</label>
+                    <select
+                      value={deptLevel}
+                      onChange={(e) => setDeptLevel(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-855 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-sans font-medium"
+                    >
+                      <option value="100l">100L (Freshman)</option>
+                      <option value="200l">200L (Sophomore)</option>
+                      <option value="300l">300L (Junior)</option>
+                      <option value="400l">400L (Senior)</option>
+                      <option value="500l">500L (Super Senior)</option>
+                    </select>
+                    <span className="text-[9px] text-slate-500 italic block mt-1 font-sans">
+                      Set the current academic level of students in this department routing segment.
+                    </span>
+                  </div>
+
+                  <div className="space-y-1">
                     <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 block">Assign Course Representative</label>
                     <select
                       value={deptCourseRepMatric}
@@ -1836,6 +1899,7 @@ export default function AdminDashboard({
                           setDeptName('');
                           setDeptPrefix('');
                           setDeptCourseRepMatric('');
+                          setDeptLevel('100l');
                         }}
                         className="flex-1 py-2.5 bg-slate-900 hover:bg-slate-850 text-slate-300 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer box-border select-none border border-slate-855 outline-none"
                       >
@@ -1883,6 +1947,9 @@ export default function AdminDashboard({
                                   <h5 className="text-xs font-sans font-bold text-slate-200">{dept.name}</h5>
                                   <span className="text-[9px] font-mono font-extrabold px-1.5 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/15 text-indigo-400 uppercase select-none">
                                     {dept.prefix}
+                                  </span>
+                                  <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/15 text-emerald-400 uppercase select-none">
+                                    {(dept.level || '100l').toUpperCase()}
                                   </span>
                                 </div>
                                 <p className="text-[10px] text-slate-500 font-sans mt-0.5">Route ID: <span className="font-mono text-slate-400">{dept.id}</span></p>

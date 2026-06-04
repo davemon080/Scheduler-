@@ -85,31 +85,6 @@ export default function NotificationsPage({
         )}
       </div>
 
-      {/* Button to Nav to Push Configuration Console for Course Rep */}
-      {isCourseRep && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.98 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="pb-2"
-        >
-          <GlassCard className="p-4 bg-gradient-to-r from-amber-500/15 via-amber-500/5 to-transparent border border-amber-500/20 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-start gap-3">
-              <span className="w-2.5 h-2.5 bg-amber-500 rounded-full animate-ping shrink-0 mt-1" />
-              <div>
-                <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-amber-400">Representative Push Console</h4>
-                <p className="text-[10px] text-slate-400 font-sans mt-0.5">Configure background push alerts, target audience filters, and analyze active student devices.</p>
-              </div>
-            </div>
-            <button
-              onClick={() => onNavigateToTab('push-config')}
-              className="w-full sm:w-auto px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-sans font-extrabold text-2xs uppercase tracking-wider rounded-xl transition-all shadow-md cursor-pointer border border-amber-400/20 whitespace-nowrap text-center"
-            >
-              Open Push Config &rarr;
-            </button>
-          </GlassCard>
-        </motion.div>
-      )}
-
       {/* Control Actions toolbar */}
       {notifications.length > 0 && (
         <div className="flex justify-between items-center bg-slate-950/40 p-2 rounded-xl border border-slate-900">
