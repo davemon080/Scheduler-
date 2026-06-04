@@ -603,6 +603,26 @@ export default function AdminDashboard({
         createdAt: new Date().toISOString()
       };
 
+      // Demote previous representative if changed or removed during Edit
+      const previousDept = departments.find(d => d.id === dId);
+      const oldRepMatric = previousDept ? previousDept.courseRepMatric : '';
+      if (oldRepMatric && oldRepMatric !== deptCourseRepMatric) {
+        try {
+          if (db) {
+            await setDoc(doc(db, 'users', getSafeDocId(oldRepMatric)), { isCourseRep: false }, { merge: true });
+          }
+          setUsers(prev => prev.map(u => u.matricNumber === oldRepMatric ? { ...u, isCourseRep: false } : u));
+          const stored = localStorage.getItem('ich100l_users_db');
+          const localDB = stored ? JSON.parse(stored) : {};
+          if (localDB[oldRepMatric]) {
+            localDB[oldRepMatric].isCourseRep = false;
+            localStorage.setItem('ich100l_users_db', JSON.stringify(localDB));
+          }
+        } catch (demoteErr) {
+          console.warn('[Admin] Failed to demote old representative profile:', demoteErr);
+        }
+      }
+
       // 1. Save doc to Firestore online/offline rules
       if (db) {
         try {

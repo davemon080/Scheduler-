@@ -8,7 +8,7 @@ import multer from "multer";
 import { createServer as createViteServer } from "vite";
 import webpush from "web-push";
 import { initializeApp } from "firebase/app";
-import { getFirestore, collection, getDocs, getDoc, setDoc, doc, deleteDoc } from "firebase/firestore";
+import { initializeFirestore, getFirestore, collection, getDocs, getDoc, setDoc, doc, deleteDoc } from "firebase/firestore";
 import nodemailer from "nodemailer";
 
 // Setup Firebase client instance on server matching firebase-applet-config
@@ -27,7 +27,9 @@ try {
       measurementId: appletConfig.measurementId || "G-X7T2126SDY"
     };
     const fbApp = initializeApp(firebaseConfig);
-    db = getFirestore(fbApp, appletConfig.firestoreDatabaseId);
+    db = initializeFirestore(fbApp, {
+      experimentalForceLongPolling: true
+    }, appletConfig.firestoreDatabaseId);
     console.log("[Server] Firebase Firestore offline-compatible client initialized successfully.");
   } else {
     console.warn("[Server] firebase-applet-config.json not found. Database features disabled on backend.");
