@@ -27,6 +27,7 @@ export default function AdminDashboard({
 }: AdminDashboardProps) {
   const [users, setUsers] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedRegisterId, setSelectedRegisterId] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -974,14 +975,30 @@ export default function AdminDashboard({
     }
   };
 
-  // Filter users lists based on live search term
+  // Match user to department ID dynamically
+  const getUserDepartmentId = (user: any) => {
+    if (!user.matricNumber) return 'unassigned';
+    const userNorm = String(user.matricNumber).toLowerCase().replace(/[\/\s\-_*]/g, "");
+    const matched = departments.find(d => {
+      const prefixNorm = String(d.prefix).toLowerCase().replace(/[\/\s\-_*]/g, "");
+      return prefixNorm && userNorm.includes(prefixNorm);
+    });
+    return matched ? matched.id : 'unassigned';
+  };
+
+  // Filter users lists based on live search term and selected register
   const filteredUsers = users.filter(u => {
     const q = searchTerm.toLowerCase();
-    return (
+    const matchesSearch = (
       u.name?.toLowerCase().includes(q) ||
       u.matricNumber?.toLowerCase().includes(q) ||
       u.email?.toLowerCase().includes(q)
     );
+
+    if (!matchesSearch) return false;
+
+    if (selectedRegisterId === 'all') return true;
+    return getUserDepartmentId(u) === selectedRegisterId;
   });
 
   // Calculate totals for KPI widgets
@@ -997,6 +1014,18 @@ export default function AdminDashboard({
   const getInitials = (fullName: string) => {
     if (!fullName) return '?';
     return fullName.trim().split(/\s+/).map(n => n[0]).slice(0, 2).join('').toUpperCase();
+  };
+
+  // Helper for dynamic anticipated student matric format hints based on register selection
+  const getExpectedMatricFormat = () => {
+    if (selectedRegisterId === 'all' || selectedRegisterId === 'unassigned') {
+      return 'Format: yyyy/ps/ich/xxxx';
+    }
+    const matchedDept = departments.find(d => d.id === selectedRegisterId);
+    if (matchedDept?.prefix) {
+      return `Format: yyyy/${matchedDept.prefix.toLowerCase()}/xxxx`;
+    }
+    return 'Format: yyyy/ps/ich/xxxx';
   };
 
   return (
@@ -1237,6 +1266,83 @@ export default function AdminDashboard({
                     className="w-full bg-slate-950/80 border border-slate-900 rounded-xl pl-9 pr-3 py-1 text-xs text-white focus:outline-none focus:border-indigo-500 placeholder:text-slate-650"
                   />
                 </div>
+              </div>
+
+              {/* Department registers selector */}
+              <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-950/40 border border-slate-900 rounded-2xl">
+                <button
+                  onClick={() => setSelectedRegisterId('all')}
+                  className={`px-3 py-1.5 rounded-xl text-[10px] font-mono font-bold uppercase tracking-wider transition-all duration-200 flex items-center gap-2 cursor-pointer outline-none ${
+                    selectedRegisterId === 'all'
+                      ? 'bg-gradient-to-r from-indigo-500/20 to-indigo-600/15 border border-indigo-500/30 text-indigo-300'
+                      : 'border border-transparent text-slate-450 hover:text-slate-350 hover:bg-slate-900/40'
+                  }`}
+                >
+                  <Users className="w-3.5 h-3.5 text-indigo-450" />
+                  <span>All Registers</span>
+                  <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded-md font-bold ${
+                    selectedRegisterId === 'all' 
+                      ? 'bg-indigo-500/30 text-indigo-300' 
+                      : 'bg-slate-900 text-slate-550'
+                  }`}>
+                    {users.length}
+                  </span>
+                </button>
+
+                {departments.map((dept) => {
+                  const deptUsers = users.filter((u) => getUserDepartmentId(u) === dept.id);
+                  const isSelected = selectedRegisterId === dept.id;
+                  return (
+                    <button
+                      key={dept.id}
+                      onClick={() => setSelectedRegisterId(dept.id)}
+                      className={`px-3 py-1.5 rounded-xl text-[10px] font-mono font-bold uppercase tracking-wider transition-all duration-200 flex items-center gap-2 cursor-pointer outline-none ${
+                        isSelected
+                          ? 'bg-gradient-to-r from-rose-500/20 to-rose-600/15 border border-rose-500/30 text-rose-350'
+                          : 'border border-transparent text-slate-450 hover:text-rose-450/70 hover:bg-slate-900/40'
+                      }`}
+                    >
+                      <GraduationCap className="w-3.5 h-3.5 text-rose-400" />
+                      <span>{(dept.prefix || dept.name).toUpperCase()} Register</span>
+                      <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded-md font-bold ${
+                        isSelected 
+                          ? 'bg-rose-500/30 text-rose-300' 
+                          : 'bg-slate-900 text-slate-550'
+                      }`}>
+                        {deptUsers.length}
+                      </span>
+                    </button>
+                  );
+                })}
+
+                {/* Display Unassigned tab if there are unassigned students */}
+                {(() => {
+                  const unassignedCount = users.filter((u) => getUserDepartmentId(u) === 'unassigned').length;
+                  if (unassignedCount > 0) {
+                    const isSelected = selectedRegisterId === 'unassigned';
+                    return (
+                      <button
+                        onClick={() => setSelectedRegisterId('unassigned')}
+                        className={`px-3 py-1.5 rounded-xl text-[10px] font-mono font-bold uppercase tracking-wider transition-all duration-200 flex items-center gap-2 cursor-pointer outline-none ${
+                          isSelected
+                            ? 'bg-gradient-to-r from-amber-500/20 to-amber-600/15 border border-amber-500/30 text-amber-300'
+                            : 'border border-transparent text-slate-450 hover:text-amber-450/75 hover:bg-slate-900/40'
+                        }`}
+                      >
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-450" />
+                        <span>Unassigned</span>
+                        <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded-md font-bold ${
+                          isSelected 
+                            ? 'bg-amber-500/30 text-amber-350' 
+                            : 'bg-slate-900 text-slate-550'
+                        }`}>
+                          {unassignedCount}
+                        </span>
+                      </button>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
 
               {/* User stream records view */}
@@ -1889,7 +1995,7 @@ export default function AdminDashboard({
                 <div className="space-y-1">
                   <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 block flex justify-between">
                     <span>Student Matric Number</span>
-                    <span className="text-[8px] text-slate-500 lowercase font-mono">Format: yyyy/ps/ich/xxxx</span>
+                    <span className="text-[8px] text-slate-500 lowercase font-mono">{getExpectedMatricFormat()}</span>
                   </label>
                   <div className="relative font-mono">
                     <KeyRound className="absolute left-3 top-2.5 w-4 h-4 text-slate-500" />
@@ -2012,7 +2118,7 @@ export default function AdminDashboard({
                 <div className="space-y-1">
                   <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 block flex justify-between">
                     <span>Student Matric Number</span>
-                    <span className="text-[8px] text-slate-500 lowercase font-mono">Format: yyyy/ps/ich/xxxx</span>
+                    <span className="text-[8px] text-slate-500 lowercase font-mono">{getExpectedMatricFormat()}</span>
                   </label>
                   <div className="relative font-mono">
                     <KeyRound className="absolute left-3 top-2.5 w-4 h-4 text-slate-500" />
