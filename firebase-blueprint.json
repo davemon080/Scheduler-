@@ -243,6 +243,9 @@
         },
         "createdAt": {
           "type": "string"
+        },
+        "departmentId": {
+          "type": "string"
         }
       },
       "required": ["id", "courseCode", "title", "createdBy", "createdAt"]
@@ -268,6 +271,9 @@
           "type": "string"
         },
         "createdBy": {
+          "type": "string"
+        },
+        "departmentId": {
           "type": "string"
         }
       },

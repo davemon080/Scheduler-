@@ -52,6 +52,7 @@ export interface Course {
   description?: string;
   createdBy: string;
   createdAt: string;
+  departmentId?: string;
 }
 
 export interface PdfModule {
@@ -62,11 +63,14 @@ export interface PdfModule {
   uploadedAt: string;
   createdBy: string;
   fileSize?: string;
+  departmentId?: string;
 }
 
 interface ModulesViewProps {
   isCourseRep: boolean;
   userMatric: string;
+  matchedDepartment?: any;
+  departments?: any[];
 }
 
 // Automatically convert common file hosting sharing links (like Google Drive, Dropbox) to direct raw PDF download endpoints
@@ -108,7 +112,12 @@ export function cleanUrlToDirectDownload(url: string): string {
   return clean;
 }
 
-export default function ModulesView({ isCourseRep, userMatric }: ModulesViewProps) {
+export default function ModulesView({
+  isCourseRep,
+  userMatric,
+  matchedDepartment,
+  departments = []
+}: ModulesViewProps) {
   // Realtime lists
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
@@ -215,7 +224,8 @@ export default function ModulesView({ isCourseRep, userMatric }: ModulesViewProp
         title: titleClean,
         description: newDesc.trim() || undefined,
         createdBy: userMatric,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        departmentId: matchedDepartment?.id || undefined
       };
 
       await setDoc(doc(db, 'courses', courseId), cleanData(newCourse));
@@ -326,7 +336,8 @@ export default function ModulesView({ isCourseRep, userMatric }: ModulesViewProp
         description: newModDesc.trim() || undefined,
         uploadedAt: new Date().toISOString(),
         createdBy: userMatric,
-        fileSize: newModSize || 'Direct Link'
+        fileSize: newModSize || 'Direct Link',
+        departmentId: matchedDepartment?.id || undefined
       };
 
       await setDoc(doc(db, 'courses', selectedCourse.id, 'pdf-modules', moduleId), cleanData(newModule));
@@ -364,11 +375,28 @@ export default function ModulesView({ isCourseRep, userMatric }: ModulesViewProp
     setDeleteConfirmModId(moduleId);
   };
 
-  // Filter courses by searchable query
-  const filteredCourses = courses.filter(c => 
-    c.courseCode.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    c.title.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Filter courses by searchable query and department constraint
+  const filteredCourses = courses.filter(c => {
+    // 1. Strict Department ID check
+    if (c.departmentId && matchedDepartment?.id && c.departmentId !== matchedDepartment.id) {
+      return false;
+    }
+    // 2. Class prefix fallback (if no departmentId, filter by code for safety)
+    if (matchedDepartment?.prefix) {
+      const normPrefix = matchedDepartment.prefix.toLowerCase(); // e.g., 'ps/ich' or 'ps/chm'
+      const codePrefix = c.courseCode.toLowerCase(); // e.g., 'ich101'
+      if (normPrefix.includes('ich') && (codePrefix.startsWith('chm') || codePrefix.startsWith('pac'))) {
+        return false;
+      }
+      if (normPrefix.includes('chm') && codePrefix.startsWith('ich')) {
+        return false;
+      }
+    }
+    return (
+      c.courseCode.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.title.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  });
 
   return (
     <div className="py-1 animate-fadeIn flex flex-col h-full relative" id="modules-view-container">

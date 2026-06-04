@@ -417,7 +417,7 @@ export default function App() {
     const userNorm = normalizeMatric(currentUser.matricNumber);
     return departments.find((dept) => {
       const deptNorm = normalizeMatric(dept.prefix);
-      return deptNorm && userNorm.startsWith(deptNorm);
+      return deptNorm && userNorm.includes(deptNorm);
     });
   }, [currentUser, departments]);
 
@@ -1128,14 +1128,60 @@ export default function App() {
   // Listen to Firestore real-time updates for departments
   useEffect(() => {
     if (!currentUser) return;
-    const unsubscribe = onSnapshot(collection(db, 'departments'), (snapshot) => {
+    const unsubscribe = onSnapshot(collection(db, 'departments'), async (snapshot) => {
       const depts: any[] = [];
       snapshot.forEach((doc) => {
         depts.push({ ...doc.data(), id: doc.id });
       });
+      
+      if (depts.length === 0) {
+        console.log('Seeding default departments...');
+        const defaultDepts = [
+          {
+            id: 'dept-ps-ich',
+            name: 'Industrial Chemistry',
+            prefix: 'ps/ich',
+            courseRepMatric: '2025/ps/ich/0034',
+            createdAt: new Date().toISOString()
+          },
+          {
+            id: 'dept-ps-chm',
+            name: 'Pure and Applied Chemistry',
+            prefix: 'ps/chm',
+            courseRepMatric: '2025/ps/chm/0034',
+            createdAt: new Date().toISOString()
+          }
+        ];
+        for (const dept of defaultDepts) {
+          try {
+            await setDoc(doc(db, 'departments', dept.id), dept);
+            depts.push(dept);
+          } catch (err) {
+            console.error('Failed to seed default department:', err);
+          }
+        }
+      }
       setDepartments(depts);
     }, (error) => {
       console.warn('Firestore listening to departments failed:', error);
+      // Failover fallback departments
+      const fallbackDepts = [
+        {
+          id: 'dept-ps-ich',
+          name: 'Industrial Chemistry',
+          prefix: 'ps/ich',
+          courseRepMatric: '2025/ps/ich/0034',
+          createdAt: new Date().toISOString()
+        },
+        {
+          id: 'dept-ps-chm',
+          name: 'Pure and Applied Chemistry',
+          prefix: 'ps/chm',
+          courseRepMatric: '2025/ps/chm/0034',
+          createdAt: new Date().toISOString()
+        }
+      ];
+      setDepartments(fallbackDepts);
     });
     return () => unsubscribe();
   }, [currentUser]);
@@ -1702,6 +1748,8 @@ export default function App() {
           <ModulesView
             isCourseRep={isCourseRep}
             userMatric={currentUser?.matricNumber || ''}
+            matchedDepartment={matchedDepartment}
+            departments={departments}
           />
         );
       case 'schedule':
