@@ -344,9 +344,42 @@
         }
       },
       "required": ["id", "matricNumber", "studentName", "email", "subject", "message", "createdAt", "status"]
+    },
+    "Traffic": {
+      "title": "Traffic",
+      "description": "Daily student app access logging records",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "matricNumber": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string"
+        },
+        "date": {
+          "type": "string"
+        }
+      },
+      "required": ["id", "matricNumber", "timestamp", "date"]
     }
   },
   "firestore": {
+    "traffic/{trafficId}": {
+      "schema": "Traffic",
+      "description": "Analytics data points recording unique user access"
+    },
     "users/{matricNumber}": {
       "schema": "User",
       "description": "User directory profiles"

@@ -112,8 +112,42 @@ function registerDeletedActivityLocally(activity: Activity) {
   }
 }
 
+const logAppTraffic = async (user?: User | null) => {
+  if (!db) return;
+  try {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const lastLoggedDate = localStorage.getItem('ich100l_last_traffic_logged_date');
+    const lastLoggedUser = localStorage.getItem('ich100l_last_traffic_logged_user');
+    
+    const currentUserKey = user?.matricNumber || 'Guest';
+
+    if (lastLoggedDate === todayStr && lastLoggedUser === currentUserKey) {
+      return;
+    }
+
+    const trafficId = `tr_${getSafeDocId(currentUserKey)}_${todayStr}`;
+    await setDoc(doc(db, 'traffic', trafficId), {
+      id: trafficId,
+      matricNumber: currentUserKey,
+      email: user?.email || (currentUserKey === 'Guest' ? 'Guest' : `${currentUserKey.replace(/\//g, '_')}@scheduler.edu`),
+      name: user?.name || 'Guest User',
+      role: user?.isCourseRep ? 'course_rep' : (user?.matricNumber === 'admin' ? 'admin' : (user ? 'student' : 'guest')),
+      timestamp: new Date().toISOString(),
+      date: todayStr
+    }, { merge: true });
+
+    localStorage.setItem('ich100l_last_traffic_logged_date', todayStr);
+    localStorage.setItem('ich100l_last_traffic_logged_user', currentUserKey);
+    console.log('[Traffic Tracking] Hit recorded:', trafficId);
+  } catch (err) {
+    console.warn('[Traffic Tracking] Session logging skipped:', err);
+  }
+};
+
 const registerDeviceInFirestore = async (user?: User | null, isInstalledEvent = false) => {
   if (!db) return;
+  // Trigger traffic hit logging on active status updates
+  logAppTraffic(user);
   try {
     let deviceId = localStorage.getItem('ich100l_device_id');
     if (!deviceId) {
