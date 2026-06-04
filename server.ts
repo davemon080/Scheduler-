@@ -289,9 +289,15 @@ app.use("/uploads", express.static(uploadDir));
 
   // Web Push API: Broadcast offline background notification alert
   app.post("/api/send-broadcast-push", async (req, res) => {
-    const { title, body, category, targetGroup, targetValue } = req.body;
+    let { title, body, category, targetGroup, targetValue, departmentId } = req.body;
     if (!title || !body) {
       return res.status(400).json({ error: "Title and body parameters are required for broadcasting alerts." });
+    }
+
+    // Map departmentId parameter to targetGroup="department" / targetValue=departmentId for seamless targeting
+    if (departmentId && !targetGroup) {
+      targetGroup = "department";
+      targetValue = departmentId;
     }
 
     if (!db) {
@@ -380,7 +386,7 @@ app.use("/uploads", express.static(uploadDir));
           if (!dept || !dept.prefix) return false;
           const userNorm = String(target.matricNumber || "").toLowerCase().replace(/[\/\s\-_*]/g, "");
           const prefixNorm = String(dept.prefix).toLowerCase().replace(/[\/\s\-_*]/g, "");
-          return prefixNorm && userNorm.startsWith(prefixNorm);
+          return prefixNorm && userNorm.includes(prefixNorm);
         }
 
         return true;

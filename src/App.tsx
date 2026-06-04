@@ -422,8 +422,8 @@ export default function App() {
   }, [currentUser, departments]);
 
   const filterItemByDepartment = (item: any) => {
-    if (!item.departmentId) return true;
-    return matchedDepartment?.id === item.departmentId;
+    const deptId = item.departmentId || 'dept-ps-ich';
+    return matchedDepartment?.id === deptId;
   };
 
   const visibleActivities = useMemo<Activity[]>(() => {
@@ -974,10 +974,11 @@ export default function App() {
           if (change.type === 'added') {
             const data = change.doc.data() as Activity;
             const docId = change.doc.id;
+            const actDeptId = data.departmentId || 'dept-ps-ich';
             if (!knownIds.has(docId)) {
               knownIds.add(docId);
-              // Only trigger visual notifications inside the app if the activity is recently created (and not by current user)
-              if (data.createdBy !== currentUser.matricNumber && isRecentlyCreatedCustomId(docId)) {
+              // Only trigger visual notifications inside the app if the activity is recently created (and matches the user's department)
+              if (matchedDepartment?.id === actDeptId && data.createdBy !== currentUser.matricNumber && isRecentlyCreatedCustomId(docId)) {
                 const notif: NotificationItem = {
                   id: `notif-act-${Date.now()}-${change.doc.id}`,
                   type: 'schedule',
@@ -997,7 +998,8 @@ export default function App() {
           } else if (change.type === 'removed') {
             const data = { ...change.doc.data(), id: change.doc.id } as Activity;
             registerDeletedActivityLocally(data);
-            if (data.createdBy !== currentUser.matricNumber) {
+            const actDeptId = data.departmentId || 'dept-ps-ich';
+            if (matchedDepartment?.id === actDeptId && data.createdBy !== currentUser.matricNumber) {
               const notif: NotificationItem = {
                 id: `notif-act-rem-${Date.now()}-${change.doc.id}`,
                 type: 'schedule',
@@ -1041,10 +1043,11 @@ export default function App() {
           if (change.type === 'added') {
             const data = change.doc.data() as Deadline;
             const docId = change.doc.id;
+            const dlDeptId = data.departmentId || 'dept-ps-ich';
             if (!knownIds.has(docId)) {
               knownIds.add(docId);
-              // Only trigger visual notifications inside the app if the deadline is recently created (and not by current user)
-              if (data.createdBy !== currentUser.matricNumber && isRecentlyCreatedCustomId(docId)) {
+              // Only trigger visual notifications inside the app if the deadline is recently created (and matches the user's department)
+              if (matchedDepartment?.id === dlDeptId && data.createdBy !== currentUser.matricNumber && isRecentlyCreatedCustomId(docId)) {
                 const notif: NotificationItem = {
                   id: `notif-dl-${Date.now()}-${change.doc.id}`,
                   type: 'deadline',
@@ -1092,11 +1095,12 @@ export default function App() {
           if (change.type === 'added') {
             const data = change.doc.data() as Announcement;
             const docId = change.doc.id;
+            const annDeptId = data.departmentId || 'dept-ps-ich';
             const isMe = data.author?.includes(currentUser.name);
             if (!knownIds.has(docId)) {
               knownIds.add(docId);
-              // Only trigger visual notifications inside the app if the announcement is recently created (and not by current user)
-              if (!isMe && isRecentlyCreatedCustomId(docId)) {
+              // Only trigger visual notifications inside the app if the announcement is recently created (and matches the user's department)
+              if (matchedDepartment?.id === annDeptId && !isMe && isRecentlyCreatedCustomId(docId)) {
                 const notif: NotificationItem = {
                   id: `notif-ann-${Date.now()}-${change.doc.id}`,
                   type: 'announcement',

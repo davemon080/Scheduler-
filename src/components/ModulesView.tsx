@@ -377,8 +377,9 @@ export default function ModulesView({
 
   // Filter courses by searchable query and department constraint
   const filteredCourses = courses.filter(c => {
-    // 1. Strict Department ID check
-    if (c.departmentId && matchedDepartment?.id && c.departmentId !== matchedDepartment.id) {
+    // 1. Strict Department ID check (default to PS/ICH if missing to keep PS/CHM clean)
+    const courseDeptId = c.departmentId || 'dept-ps-ich';
+    if (matchedDepartment?.id && courseDeptId !== matchedDepartment.id) {
       return false;
     }
     // 2. Class prefix fallback (if no departmentId, filter by code for safety)

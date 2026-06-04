@@ -106,19 +106,23 @@ export default function AddEditPage({
 }: AddEditPageProps) {
   const isEditing = editActivity !== null;
 
+  // Auto-match user's department by matric number pattern
+  const userMatchedDept = React.useMemo(() => {
+    if (!currentUserMatric || !departments || departments.length === 0) return null;
+    const userNorm = currentUserMatric.toLowerCase().replace(/[\/\s\-_*]/g, '');
+    return departments.find(dept => {
+      const deptNorm = dept.prefix.toLowerCase().replace(/[\/\s\-_*]/g, '');
+      return deptNorm && userNorm.includes(deptNorm);
+    });
+  }, [currentUserMatric, departments]);
+
   // Track selected department
   const [selectedDeptId, setSelectedDeptId] = useState<string>(() => {
     if (type === 'schedule' && editActivity) {
       return (editActivity as any).departmentId || '';
     }
-    // Auto-match user's department by matric number pattern
-    if (currentUserMatric && departments.length > 0) {
-      const userNorm = currentUserMatric.toLowerCase().replace(/[\/\s\-_*]/g, '');
-      const matched = departments.find(dept => {
-        const deptNorm = dept.prefix.toLowerCase().replace(/[\/\s\-_*]/g, '');
-        return deptNorm && userNorm.startsWith(deptNorm);
-      });
-      if (matched) return matched.id;
+    if (userMatchedDept) {
+      return userMatchedDept.id;
     }
     return '';
   });
@@ -248,6 +252,8 @@ export default function AddEditPage({
         finalDay = WEEKDAY_NAMES[d.getDay()];
       }
 
+      const finalDeptId = userMatchedDept?.id || selectedDeptId || undefined;
+
       const activityData = {
         title: actTitle.trim(),
         courseCode: actCourse.trim().toUpperCase(),
@@ -260,7 +266,7 @@ export default function AddEditPage({
         deliveryType: actDelivery,
         classLink: actDelivery === 'online' ? actLink.trim() : undefined,
         date: finalDate,
-        departmentId: selectedDeptId || undefined
+        departmentId: finalDeptId
       };
 
       if (isEditing && editActivity) {
@@ -284,6 +290,8 @@ export default function AddEditPage({
         return;
       }
 
+      const finalDeptId = userMatchedDept?.id || selectedDeptId || undefined;
+
       onAddDeadline({
         title: dlTitle.trim(),
         courseCode: dlCourse.trim().toUpperCase(),
@@ -291,7 +299,7 @@ export default function AddEditPage({
         description: dlDesc.trim() || undefined,
         imageUrl: dlImages[0] || undefined,
         imageUrls: dlImages.length > 0 ? dlImages : undefined,
-        departmentId: selectedDeptId || undefined
+        departmentId: finalDeptId
       } as any);
 
       setSuccessMsg('Assignment deadline registered successfully!');
@@ -307,13 +315,15 @@ export default function AddEditPage({
         return;
       }
 
+      const finalDeptId = userMatchedDept?.id || selectedDeptId || undefined;
+
       onAddAnnouncement({
         title: annTitle.trim(),
         content: annContent.trim(),
         priority: annPriority,
         imageUrl: annImages[0] || undefined,
         imageUrls: annImages.length > 0 ? annImages : undefined,
-        departmentId: selectedDeptId || undefined
+        departmentId: finalDeptId
       } as any);
 
       setSuccessMsg('Announcement broadcast sent successfully!');
@@ -348,23 +358,38 @@ export default function AddEditPage({
     return (
       <div id="dept-select-group" className="space-y-1.5 pt-1">
         <label className="block text-xs font-semibold text-slate-300 font-sans">
-          Restrict by Department (Optional)
+          Post to Department
         </label>
         <select
-          value={selectedDeptId}
+          disabled={!!userMatchedDept}
+          value={userMatchedDept ? userMatchedDept.id : selectedDeptId}
           onChange={(e) => setSelectedDeptId(e.target.value)}
-          className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-slate-100 text-sm focus:outline-none focus:border-indigo-500 transition-colors font-sans cursor-pointer"
+          className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-slate-100 text-sm focus:outline-none focus:border-indigo-500 transition-colors font-sans cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed"
         >
-          <option value="">All Students (General Class) 🌍</option>
-          {departments.map((dept) => (
-            <option key={dept.id} value={dept.id}>
-              {dept.name} ({dept.prefix})
+          {userMatchedDept ? (
+            <option value={userMatchedDept.id}>
+              {userMatchedDept.name} ({userMatchedDept.prefix})
             </option>
-          ))}
+          ) : (
+            <>
+              <option value="">All Students (General Class) 🌍</option>
+              {departments.map((dept) => (
+                <option key={dept.id} value={dept.id}>
+                  {dept.name} ({dept.prefix})
+                </option>
+              ))}
+            </>
+          )}
         </select>
-        <p className="text-[10px] text-slate-400 font-sans font-medium italic select-none">
-          If selected, only students with matching matric prefixes can see this and receive push alerts.
-        </p>
+        {userMatchedDept ? (
+          <p className="text-[10px] text-indigo-400 font-sans font-medium italic select-none">
+            Locked to your department ({userMatchedDept.prefix}) based on matric number.
+          </p>
+        ) : (
+          <p className="text-[10px] text-slate-400 font-sans font-medium italic select-none">
+            If selected, only students with matching matric prefixes can see this and receive push alerts.
+          </p>
+        )}
       </div>
     );
   };
