@@ -9,7 +9,7 @@ import {
   Users, UserPlus, Shield, ShieldCheck, ShieldAlert, KeyRound, 
   Trash2, Search, Loader2, LogOut, RefreshCw, Sparkles, Check, AlertTriangle, 
   GraduationCap, Mail, Calendar, CheckCircle, Info, Plus, Settings, LayoutDashboard,
-  Ban, MessageSquare, Database, Edit3
+  Ban, MessageSquare, Database, Edit3, Play, Square
 } from 'lucide-react';
 import GlassCard from './GlassCard';
 import FeedbackPage from './FeedbackPage';
@@ -27,7 +27,17 @@ export default function AdminDashboard({
 }: AdminDashboardProps) {
   const [users, setUsers] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedRegisterId, setSelectedRegisterId] = useState<string>('all');
+  const [selectedRegisterId, setSelectedRegisterId] = useState<string>('ps/ich');
+  const [semesterConfig, setSemesterConfig] = useState<{
+    semesterActive: boolean;
+    semesterStartedAt: string | null;
+    amount: number;
+  }>({
+    semesterActive: true,
+    semesterStartedAt: null,
+    amount: 1000
+  });
+  const [isUpdatingSemester, setIsUpdatingSemester] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -248,29 +258,11 @@ export default function AdminDashboard({
       }
     }
     
-    // Check 7-day trial
-    const regDateStr = user.createdAt;
-    if (regDateStr) {
-      const regTime = new Date(regDateStr).getTime();
-      const nowTime = Date.now();
-      const trialDuration = 7 * 24 * 60 * 60 * 1000;
-      if ((nowTime - regTime) < trialDuration) {
-        const msLeft = regTime + trialDuration - nowTime;
-        const daysRemaining = Math.max(0, Math.ceil(msLeft / (1000 * 60 * 60 * 24)));
-        return {
-          type: 'trial',
-          label: `Trial (${daysRemaining}d left)`,
-          badgeClass: 'bg-amber-500/10 text-amber-400 border-amber-500/15',
-          expiryText: '7-day limited free access'
-        };
-      }
-    }
-    
     return {
       type: 'expired',
-      label: 'Inactive (Ad-Supported)',
+      label: 'Inactive',
       badgeClass: 'bg-slate-550/10 text-slate-400 border-slate-800/60',
-      expiryText: 'No subscription active'
+      expiryText: 'No active pass'
     };
   };
 
@@ -394,6 +386,30 @@ export default function AdminDashboard({
         });
       } catch (err) {
         console.error('[Admin] Live feedback onSnapshot subscription failed:', err);
+      }
+    }
+    return () => unsubscribe();
+  }, []);
+
+  // Listen to live semester configuration
+  useEffect(() => {
+    let unsubscribe = () => {};
+    if (db) {
+      try {
+        unsubscribe = onSnapshot(doc(db, 'system-config', 'semester-billing'), (snap) => {
+          if (snap.exists()) {
+            const data = snap.data();
+            setSemesterConfig({
+              semesterActive: data.semesterActive ?? true,
+              semesterStartedAt: data.semesterStartedAt ?? null,
+              amount: data.amount ?? 1000
+            });
+          }
+        }, (err) => {
+          console.warn('[Admin] Live semester config fetch fallback:', err);
+        });
+      } catch (err) {
+        console.error('[Admin] Live semester config subscription failed:', err);
       }
     }
     return () => unsubscribe();
@@ -975,6 +991,58 @@ export default function AdminDashboard({
     }
   };
 
+  // Academic Semester Control Functions
+  const handleStartSemester = async () => {
+    if (!db) return;
+    setIsUpdatingSemester(true);
+    setActionFeedback(null);
+    try {
+      const now = new Date().toISOString();
+      await setDoc(doc(db, 'system-config', 'semester-billing'), {
+        semesterActive: true,
+        semesterStartedAt: now,
+        amount: 1000
+      });
+      setActionFeedback({
+        type: 'success',
+        message: 'New academic semester officially started! Dynamic billing active and student access open.'
+      });
+    } catch (err: any) {
+      console.error('[Admin] Fail starting semester:', err);
+      setActionFeedback({
+        type: 'error',
+        message: 'Could not sync started semester state with online database.'
+      });
+    } finally {
+      setIsUpdatingSemester(false);
+    }
+  };
+
+  const handleEndSemester = async () => {
+    if (!db) return;
+    setIsUpdatingSemester(true);
+    setActionFeedback(null);
+    try {
+      await setDoc(doc(db, 'system-config', 'semester-billing'), {
+        semesterActive: false,
+        semesterStartedAt: null,
+        amount: 1000
+      });
+      setActionFeedback({
+        type: 'success',
+        message: 'Current semester marked as ended. Student access passport locked.'
+      });
+    } catch (err: any) {
+      console.error('[Admin] Fail ending semester:', err);
+      setActionFeedback({
+        type: 'error',
+        message: 'Could not sync ended semester state with online database.'
+      });
+    } finally {
+      setIsUpdatingSemester(false);
+    }
+  };
+
   // Match user to department ID dynamically
   const getUserDepartmentId = (user: any) => {
     if (!user.matricNumber) return 'unassigned';
@@ -1270,25 +1338,6 @@ export default function AdminDashboard({
 
               {/* Department registers selector */}
               <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-950/40 border border-slate-900 rounded-2xl">
-                <button
-                  onClick={() => setSelectedRegisterId('all')}
-                  className={`px-3 py-1.5 rounded-xl text-[10px] font-mono font-bold uppercase tracking-wider transition-all duration-200 flex items-center gap-2 cursor-pointer outline-none ${
-                    selectedRegisterId === 'all'
-                      ? 'bg-gradient-to-r from-indigo-500/20 to-indigo-600/15 border border-indigo-500/30 text-indigo-300'
-                      : 'border border-transparent text-slate-450 hover:text-slate-350 hover:bg-slate-900/40'
-                  }`}
-                >
-                  <Users className="w-3.5 h-3.5 text-indigo-450" />
-                  <span>All Registers</span>
-                  <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded-md font-bold ${
-                    selectedRegisterId === 'all' 
-                      ? 'bg-indigo-500/30 text-indigo-300' 
-                      : 'bg-slate-900 text-slate-550'
-                  }`}>
-                    {users.length}
-                  </span>
-                </button>
-
                 {departments.map((dept) => {
                   const deptUsers = users.filter((u) => getUserDepartmentId(u) === dept.id);
                   const isSelected = selectedRegisterId === dept.id;
@@ -1715,18 +1764,106 @@ export default function AdminDashboard({
             </div>
           </div>
         ) : (
-          <div className="max-w-md mx-auto space-y-4 pb-32">
-            <div className="flex items-center gap-2 border-b border-slate-900 pb-2">
-              <Settings className="w-4.5 h-4.5 text-indigo-400 shrink-0" />
-              <h3 className="text-sm font-display font-bold text-slate-200">Security Credentials Control</h3>
+          <div className="max-w-4xl mx-auto space-y-6 pb-32">
+            <div className="flex items-center gap-2 border-b border-slate-900 db-2.5">
+              <Settings className="w-5 h-5 text-indigo-400 shrink-0" />
+              <div>
+                <h3 className="text-sm font-display font-bold text-slate-200">System Command Settings</h3>
+                <p className="text-[10px] text-slate-500 font-sans mt-0.5">Configure system parameters, semester billing gates, and credentials synchronization.</p>
+              </div>
             </div>
 
-            <GlassCard className="p-6 bg-slate-950/60 border-slate-900 relative">
-              <div className="absolute top-0 right-0 w-24 h-1 bg-gradient-to-l from-indigo-500 via-purple-500 to-pink-500" />
-              
-              <h4 className="text-xs font-mono font-bold text-slate-200 uppercase tracking-wider mb-4 flex items-center gap-1.5">
-                <ShieldCheck className="w-4 h-4 text-emerald-400" /> Change Control Password
-              </h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start animate-fadeIn">
+              {/* Card 1: Academic Semester Access & Billing */}
+              <GlassCard className="p-6 bg-slate-950/60 border-slate-900 relative">
+                <div className="absolute top-0 right-0 w-24 h-1 bg-gradient-to-l from-emerald-500 via-teal-500 to-indigo-500" />
+                
+                <h4 className="text-xs font-mono font-bold text-slate-200 uppercase tracking-wider mb-4 flex items-center gap-1.5">
+                  <Calendar className="w-4 h-4 text-emerald-450" /> Academic Semester Control
+                </h4>
+
+                <div className="space-y-4">
+                  <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-900 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-slate-400 font-sans">Current Portal Mode:</span>
+                      <span className={`text-[9px] font-mono font-bold px-2.5 py-0.5 rounded-full ${
+                        semesterConfig.semesterActive
+                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.15)] animate-pulse'
+                          : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                      }`}>
+                        {semesterConfig.semesterActive ? '● SEMESTER STARTED' : '● SEMESTER ENDED'}
+                      </span>
+                    </div>
+
+                    <div className="h-px bg-slate-900" />
+
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-slate-400 font-sans">Student Pass Fee:</span>
+                      <span className="text-xs text-slate-200 font-mono font-black">₦1,000 / semester</span>
+                    </div>
+
+                    {semesterConfig.semesterActive && semesterConfig.semesterStartedAt && (
+                      <>
+                        <div className="h-px bg-slate-900" />
+                        <div className="flex flex-col gap-1 text-left">
+                          <span className="text-[10px] text-slate-500 font-sans">Commencement Date:</span>
+                          <span className="text-[10.5px] text-indigo-300 font-mono">
+                            {new Date(semesterConfig.semesterStartedAt).toLocaleString(undefined, {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  <p className="text-[11px] text-slate-450 leading-relaxed font-sans">
+                    Click <strong>Start Semester</strong> to record active commencement date and enable student ₦1,000 payments on profiles. Click <strong>End Semester</strong> to immediately refresh student payments and lock their access.
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-3 pt-2">
+                    <button
+                      type="button"
+                      disabled={isUpdatingSemester || semesterConfig.semesterActive}
+                      onClick={handleStartSemester}
+                      className="py-2.5 px-3 bg-gradient-to-tr from-emerald-600 via-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white disabled:opacity-30 disabled:scale-100 disabled:shadow-none rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer border-0 shadow-md shadow-emerald-500/10 active:scale-95"
+                    >
+                      {isUpdatingSemester ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Play className="w-3.5 h-3.5" />
+                      )}
+                      <span>Start Semester</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isUpdatingSemester || !semesterConfig.semesterActive}
+                      onClick={handleEndSemester}
+                      className="py-2.5 px-3 bg-gradient-to-tr from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white disabled:opacity-30 disabled:scale-100 disabled:shadow-none rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer border-0 shadow-md active:scale-95"
+                    >
+                      {isUpdatingSemester ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Square className="w-3.5 h-3.5" />
+                      )}
+                      <span>End Semester</span>
+                    </button>
+                  </div>
+                </div>
+              </GlassCard>
+
+              {/* Card 2: Security Credentials Control */}
+              <GlassCard className="p-6 bg-slate-950/60 border-slate-900 relative">
+                <div className="absolute top-0 right-0 w-24 h-1 bg-gradient-to-l from-indigo-550 via-purple-550 to-pink-500" />
+                
+                <h4 className="text-xs font-mono font-bold text-slate-200 uppercase tracking-wider mb-4 flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-indigo-400" /> Security Credentials
+                </h4>
 
               <form onSubmit={handleChangeAdminPassword} className="space-y-4">
                 {passError && (
@@ -1820,7 +1957,8 @@ export default function AdminDashboard({
               </form>
             </GlassCard>
           </div>
-        )}
+        </div>
+      )}
 
       </main>
 

@@ -21,6 +21,7 @@ export interface NotificationItem {
   isRead: boolean;
   priority: 'high' | 'medium' | 'info';
   referenceTab: 'schedule' | 'deadlines' | 'announcements' | 'modules';
+  departmentId?: string;
 }
 
 interface NotificationsPageProps {

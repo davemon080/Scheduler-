@@ -440,6 +440,27 @@ export default function App() {
   }, [announcements, matchedDepartment]);
   const [subscriptionDetails, setSubscriptionDetails] = useState<any>(null);
   const [trialDetails, setTrialDetails] = useState<{ isTrial: boolean; daysRemaining: number } | null>(null);
+  
+  const [semesterConfig, setSemesterConfig] = useState<{
+    semesterActive: boolean;
+    semesterStartedAt: string | null;
+    amount: number;
+  }>({
+    semesterActive: true,
+    semesterStartedAt: null,
+    amount: 1000
+  });
+
+  const appTitle = useMemo(() => {
+    return matchedDepartment?.prefix === 'ps/chm' ? 'CHM100L' : 'ICH100L';
+  }, [matchedDepartment]);
+
+  const visibleNotifications = useMemo(() => {
+    return notifications.filter((notif) => {
+      if (!notif.departmentId) return true;
+      return notif.departmentId === matchedDepartment?.id;
+    });
+  }, [notifications, matchedDepartment]);
 
   // Logo branding status
   const [logoUrl, setLogoUrl] = useState<string>('');
@@ -641,48 +662,8 @@ export default function App() {
 
     // Trial checker helper to evaluate registration and remaining 1 week period
     const checkAndGetTrial = () => {
-      let regDateStr = currentUser.createdAt;
-      if (!regDateStr) {
-        const storedUsers = localStorage.getItem('ich100l_users_db');
-        if (storedUsers) {
-          try {
-            const dbRef = JSON.parse(storedUsers);
-            if (dbRef[currentUser.matricNumber]?.createdAt) {
-              regDateStr = dbRef[currentUser.matricNumber].createdAt;
-            }
-          } catch(e) {}
-        }
-      }
-
-      if (!regDateStr) {
-        const nowStr = new Date().toISOString();
-        regDateStr = nowStr;
-        const updatedUser = { ...currentUser, createdAt: nowStr };
-        setCurrentUser(updatedUser);
-        localStorage.setItem('ich100l_user', JSON.stringify(updatedUser));
-        
-        try {
-          const storedUsers = localStorage.getItem('ich100l_users_db');
-          const dbRef = storedUsers ? JSON.parse(storedUsers) : {};
-          if (!dbRef[currentUser.matricNumber]) {
-            dbRef[currentUser.matricNumber] = { ...currentUser, password: 'password123' };
-          }
-          dbRef[currentUser.matricNumber].createdAt = nowStr;
-          localStorage.setItem('ich100l_users_db', JSON.stringify(dbRef));
-        } catch(e) {}
-
-        try {
-          setDoc(doc(db, 'users', getSafeDocId(currentUser.matricNumber)), { createdAt: nowStr }, { merge: true });
-        } catch(e) {}
-      }
-
-      const regTime = new Date(regDateStr).getTime();
-      const nowTime = new Date().getTime();
-      const trialDuration = 7 * 24 * 60 * 60 * 1000; // 7 days (1 week)
-      const isTrial = (nowTime - regTime) < trialDuration;
-      const msLeft = regTime + trialDuration - nowTime;
-      const daysRemaining = Math.max(0, Math.ceil(msLeft / (1000 * 60 * 60 * 24)));
-      return { isTrial, daysRemaining };
+      // Free trial completely removed as requested
+      return { isTrial: false, daysRemaining: 0 };
     };
 
     const trial = checkAndGetTrial();
@@ -706,77 +687,112 @@ export default function App() {
 
     // Fallback if no valid sub but trial is active
     if (!hasValidPaidSub) {
-      if (trial.isTrial) {
+      setSubStatus('inactive');
+    }
+
+    // Unified Semester Billing & Subscription Checker
+    let unsubscribeSub: () => void = () => {};
+
+    const unsubscribeSemester = onSnapshot(doc(db, 'system-config', 'semester-billing'), (snapBill) => {
+      let isSemActive = true;
+      let semStartedAt: string | null = null;
+      let semAmount = 1000;
+
+      if (snapBill.exists()) {
+        const data = snapBill.data();
+        isSemActive = data.semesterActive ?? true;
+        semStartedAt = data.semesterStartedAt ?? null;
+        semAmount = data.amount ?? 1000;
+        
+        setSemesterConfig({
+          semesterActive: isSemActive,
+          semesterStartedAt: semStartedAt,
+          amount: semAmount
+        });
+      }
+
+      // Check rep/admin overrides
+      const isRepOrAdmin = currentUser.isAdmin || currentUser.isCourseRep || currentUser.matricNumber === DEFAULT_COURSE_REP_MATRIC || currentUser.matricNumber === '2025/ps/ich/0034' || currentUser.matricNumber === '2026/ps/ich/0034';
+      if (isRepOrAdmin) {
         setSubStatus('active');
         setSubscriptionDetails({
           status: 'active',
-          isTrial: true,
-          expiryDate: new Date(new Date(currentUser.createdAt || new Date()).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-          reference: 'FREE-TRIAL'
+          isTrial: false,
+          expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+          lastPaymentDate: new Date().toISOString(),
+          reference: 'ADMIN-PASS',
+          amountPaid: semAmount
         });
-      } else {
-        setSubStatus('inactive');
+        return;
       }
-    }
 
-    const unsubscribe = onSnapshot(doc(db, 'subscriptions', getSafeDocId(currentUser.matricNumber)), (docSnap) => {
-      const currentTrial = checkAndGetTrial();
-      setTrialDetails(currentTrial);
+      // If semester is ended, ALL standard students are locked out, and payment is disabled!
+      if (!isSemActive) {
+        setSubStatus('inactive');
+        setSubscriptionDetails({
+          status: 'inactive',
+          message: 'The current semester has ended. Platform data access is locked until the registration portal is activated.',
+          lastPaymentDate: null
+        });
+        return;
+      }
 
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        const isExpired = data.expiryDate ? new Date().toISOString() > data.expiryDate : true;
-        
-        const details = {
-          status: isExpired ? 'inactive' : 'active',
-          expiryDate: data.expiryDate,
-          lastPaymentDate: data.lastPaymentDate,
-          reference: data.reference
-        };
+      // Otherwise, check their subscription document in real time!
+      const subRef = doc(db, 'subscriptions', getSafeDocId(currentUser.matricNumber));
+      
+      // Clean up previous subscription listener if it was running
+      unsubscribeSub();
 
-        if (!isExpired) {
-          setSubscriptionDetails(details);
-          setSubStatus('active');
-          localStorage.setItem(`ich100l_sub_${currentUser.matricNumber}`, JSON.stringify(details));
-        } else {
-          // If expired, check if trial is still active
-          if (currentTrial.isTrial) {
-            setSubscriptionDetails({
+      unsubscribeSub = onSnapshot(subRef, (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          
+          // Must have paid specifically after block started!
+          const payDateStr = data.lastPaymentDate;
+          const hasPaidThisSemester = payDateStr && (!semStartedAt || payDateStr >= semStartedAt);
+
+          if (hasPaidThisSemester) {
+            const details = {
               status: 'active',
-              isTrial: true,
-              expiryDate: new Date(new Date(currentUser.createdAt || new Date()).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-              reference: 'FREE-TRIAL'
-            });
+              expiryDate: data.expiryDate || new Date(Date.now() + 120 * 24 * 60 * 60 * 1000).toISOString(),
+              lastPaymentDate: payDateStr,
+              reference: data.reference || 'PAYSTACK-OK',
+              amountPaid: data.amountPaid || 1000
+            };
+            setSubscriptionDetails(details);
             setSubStatus('active');
+            localStorage.setItem(`ich100l_sub_${currentUser.matricNumber}`, JSON.stringify(details));
           } else {
+            // Paid in previous semester but not this one
+            const details = {
+              status: 'inactive',
+              expiryDate: data.expiryDate,
+              lastPaymentDate: payDateStr,
+              reference: data.reference,
+              message: 'Your payment was registered in a previous semester. Please pay ₦1,000 to authorize access for the current semester.'
+            };
             setSubscriptionDetails(details);
             setSubStatus('inactive');
             localStorage.setItem(`ich100l_sub_${currentUser.matricNumber}`, JSON.stringify(details));
           }
-        }
-      } else {
-        // No subscription document, check trial
-        if (currentTrial.isTrial) {
-          setSubscriptionDetails({
-            status: 'active',
-            isTrial: true,
-            expiryDate: new Date(new Date(currentUser.createdAt || new Date()).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-            reference: 'FREE-TRIAL'
-          });
-          setSubStatus('active');
         } else {
+          // Never paid
           setSubscriptionDetails({ status: 'inactive' });
           setSubStatus('inactive');
           localStorage.removeItem(`ich100l_sub_${currentUser.matricNumber}`);
         }
-      }
+      }, (error) => {
+        console.warn('Subscription fetch fallback: ', error);
+        setSubStatus('inactive');
+      });
     }, (error) => {
-      console.warn('Listening to subscriptions collection failed:', error);
-      const currentTrial = checkAndGetTrial();
-      setSubStatus(currentTrial.isTrial ? 'active' : 'inactive');
+      console.warn('Semester config fetch fallback: ', error);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeSemester();
+      unsubscribeSub();
+    };
   }, [currentUser]);
 
   // Session concurrency safety: Listen to changes in user profile document on Firestore.
@@ -1022,7 +1038,7 @@ export default function App() {
       console.warn('Firestore listening to activities failed:', error);
     });
     return () => unsubscribe();
-  }, [currentUser]);
+  }, [currentUser, matchedDepartment]);
 
   // Listen to Firestore real-time updates for deadlines
   useEffect(() => {
@@ -1074,7 +1090,7 @@ export default function App() {
       console.warn('Firestore listening to deadlines failed:', error);
     });
     return () => unsubscribe();
-  }, [currentUser]);
+  }, [currentUser, matchedDepartment]);
 
   // Listen to Firestore real-time updates for announcements
   useEffect(() => {
@@ -1127,7 +1143,7 @@ export default function App() {
       console.warn('Firestore listening to announcements failed:', error);
     });
     return () => unsubscribe();
-  }, [currentUser]);
+  }, [currentUser, matchedDepartment]);
 
   // Listen to Firestore real-time updates for departments
   useEffect(() => {
@@ -1863,6 +1879,7 @@ export default function App() {
             onChangeTab={setActiveTab}
             deferredPrompt={deferredPrompt}
             onClearDeferredPrompt={() => setDeferredPrompt(null)}
+            appTitle={appTitle}
           />
         );
       case 'notifications' as any:
@@ -1873,10 +1890,13 @@ export default function App() {
             activities={visibleActivities}
             onBack={() => setActiveTab('schedule')}
             onNavigateToTab={(tab) => setActiveTab(tab)}
-            notifications={notifications}
+            notifications={visibleNotifications}
             isCourseRep={isCourseRep}
             onMarkAllAsRead={() => {
-              setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+              setNotifications((prev) => prev.map((n) => {
+                const isUserNotif = !n.departmentId || n.departmentId === matchedDepartment?.id;
+                return isUserNotif ? { ...n, isRead: true } : n;
+              }));
             }}
             onToggleRead={(id) => {
               setNotifications((prev) =>
@@ -1884,7 +1904,7 @@ export default function App() {
               );
             }}
             onClearNotifications={() => {
-              setNotifications([]);
+              setNotifications((prev) => prev.filter((n) => n.departmentId && n.departmentId !== matchedDepartment?.id));
             }}
           />
         );
@@ -2163,7 +2183,7 @@ export default function App() {
             </button>
             <div>
               <h1 className="text-xl font-display font-bold text-slate-100 tracking-tight leading-none font-sans">
-                ICH100L
+                {appTitle}
               </h1>
               <span className="text-[10px] font-mono font-medium text-slate-400">Class Board</span>
             </div>
@@ -2204,30 +2224,13 @@ export default function App() {
               title="Notices & Inbox"
             >
               <Bell className="w-4 h-4" />
-              {notifications.some(n => !n.isRead) && (
+              {visibleNotifications.some(n => !n.isRead) && (
                 <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-rose-500 ring-1 ring-slate-950 animate-pulse" />
               )}
             </button>
           </div>
         </div>
       </header>
-
-      {trialDetails?.isTrial && !isCourseRep && subscriptionDetails?.isTrial && (
-        <div className="bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-indigo-500/10 border-b border-indigo-500/20 py-2.5 px-4 shadow-[0_2px_8px_rgba(99,102,241,0.1)] shrink-0 z-20">
-          <div className="max-w-md mx-auto flex items-center justify-between gap-2.5">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-indigo-400 shrink-0" />
-              <p className="text-xs font-sans text-slate-200">
-                You're on a <strong className="text-indigo-300">1-week free trial</strong>
-              </p>
-            </div>
-            <div className="flex items-center gap-1 bg-indigo-500/15 px-2.5 py-0.5 rounded-full border border-indigo-500/20">
-              <Clock className="w-3.5 h-3.5 text-indigo-300" />
-              <span className="text-[10px] font-mono font-semibold text-indigo-200">{trialDetails.daysRemaining} days left</span>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Prime Core Scrollable workspace container */}
       <main className="flex-1 overflow-y-auto max-w-md mx-auto w-full px-4 pt-6 pb-32 z-10 no-scrollbar">
@@ -2272,8 +2275,8 @@ export default function App() {
         currentTab={activeTab}
         onChangeTab={setActiveTab}
         isCourseRep={isCourseRep}
-        deadlinesBadge={notifications.filter(n => n.type === 'deadline' && !n.isRead).length}
-        broadcastsBadge={notifications.filter(n => n.type === 'announcement' && !n.isRead).length}
+        deadlinesBadge={visibleNotifications.filter(n => n.type === 'deadline' && !n.isRead).length}
+        broadcastsBadge={visibleNotifications.filter(n => n.type === 'announcement' && !n.isRead).length}
       />
     </div>
   );

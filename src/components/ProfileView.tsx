@@ -132,6 +132,7 @@ interface ProfileViewProps {
   onChangeTab: (tab: any) => void;
   deferredPrompt?: any;
   onClearDeferredPrompt?: () => void;
+  appTitle?: string;
 }
 
 export default function ProfileView({ 
@@ -144,7 +145,8 @@ export default function ProfileView({
   onUpdateSubStatus,
   onChangeTab,
   deferredPrompt,
-  onClearDeferredPrompt
+  onClearDeferredPrompt,
+  appTitle = 'ICH100L'
 }: ProfileViewProps) {
   const isRep = user.matricNumber === DEFAULT_COURSE_REP_MATRIC;
 
@@ -654,17 +656,8 @@ export default function ProfileView({
       if (verifyData.success) {
         const now = new Date();
         let expiryDate = new Date();
-        expiryDate.setDate(expiryDate.getDate() + 30);
-
-        if (user.createdAt) {
-          const regTime = new Date(user.createdAt).getTime();
-          const trialDuration = 7 * 24 * 60 * 60 * 1000; // 7 days (1 week)
-          const trialEndTime = regTime + trialDuration;
-          if (now.getTime() < trialEndTime) {
-            // Subscription starts from after the 7-day trial ends
-            expiryDate = new Date(trialEndTime + 30 * 24 * 60 * 60 * 1000);
-          }
-        }
+        // Course semester duration is set to 120 days (4 months) as requested
+        expiryDate.setDate(expiryDate.getDate() + 120);
 
         const subData = {
           status: 'active',
@@ -674,7 +667,7 @@ export default function ProfileView({
           lastPaymentDate: new Date().toISOString(),
           expiryDate: expiryDate.toISOString(),
           reference: ref,
-          amountPaid: 200,
+          amountPaid: 1000,
         };
 
         // Write directly to firebase subscriptions collection
@@ -686,7 +679,7 @@ export default function ProfileView({
           matricNumber: user.matricNumber,
           email: user.email || `${user.matricNumber.replace(/\//g, '_')}@ich100l.edu`,
           name: user.name,
-          amount: 200,
+          amount: 1000,
           paidAt: new Date().toISOString(),
           status: 'success'
         });
@@ -744,7 +737,7 @@ export default function ProfileView({
           paystack.newTransaction({
             key: publicKey,
             email: email,
-            amount: 200 * 100, // ₦200 in kobo
+            amount: 1000 * 100, // ₦1000 in kobo
             currency: 'NGN',
             ref: reference,
             metadata: {
@@ -782,7 +775,7 @@ export default function ProfileView({
         const handler = (window as any).PaystackPop.setup({
           key: publicKey,
           email: email,
-          amount: 200 * 100,
+          amount: 1000 * 100,
           currency: 'NGN',
           ref: reference,
           callback: function (response: any) {
@@ -844,7 +837,7 @@ export default function ProfileView({
           Student Dashboard
         </h2>
         <p className="text-xs text-slate-400 font-sans mt-0.5">
-          Access your ICH100L student credentials and statistics
+          Access your {appTitle} student credentials and statistics
         </p>
       </div>
 
@@ -1188,7 +1181,7 @@ export default function ProfileView({
               <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-900 space-y-2.5">
                 <div className="flex justify-between items-center">
                   <span className="text-xs text-slate-400 font-sans">Subscription Level:</span>
-                  <span className="text-xs text-slate-200 font-bold font-sans">₦200.00 / month</span>
+                  <span className="text-xs text-slate-200 font-bold font-sans">₦1,000.00 / semester</span>
                 </div>
                 <div className="h-px bg-slate-900" />
                 <div className="flex justify-between items-center">
@@ -1248,7 +1241,7 @@ export default function ProfileView({
                       className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-indigo-500/10 hover:shadow-indigo-500/25 cursor-pointer outline-none flex items-center justify-center gap-1.5 active:scale-95"
                     >
                       <CreditCard className="w-4 h-4 text-indigo-200" />
-                      <span>Configure Access & Payments (₦200)</span>
+                      <span>Configure Access & Payments (₦1,000)</span>
                     </button>
                   </div>
                 </div>
@@ -1487,7 +1480,7 @@ export default function ProfileView({
             </div>
             <div>
               <p className="text-sm font-sans font-medium text-rose-300">
-                {isLoggingOut ? 'Signing out...' : 'Sign-out from ICH100L'}
+                {isLoggingOut ? 'Signing out...' : `Sign-out from ${appTitle}`}
               </p>
               <p className="text-xs text-rose-500 font-sans">
                 {isLoggingOut ? 'Clearing secure login state...' : 'Clears credentials from active browser memory'}
