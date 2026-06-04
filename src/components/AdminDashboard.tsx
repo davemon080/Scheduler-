@@ -72,6 +72,9 @@ export default function AdminDashboard({
   const [isPublishingVersion, setIsPublishingVersion] = useState(false);
   const [versionPubSuccess, setVersionPubSuccess] = useState('');
   const [versionPubError, setVersionPubError] = useState('');
+  const [isSendingPushUpdate, setIsSendingPushUpdate] = useState(false);
+  const [pushUpdateSuccess, setPushUpdateSuccess] = useState('');
+  const [pushUpdateError, setPushUpdateError] = useState('');
 
   // Password reset/management states
   const [currentPassword, setCurrentPassword] = useState('');
@@ -1056,6 +1059,42 @@ export default function AdminDashboard({
       setVersionPubError(err.message || 'Failed to update system config in Firestore.');
     } finally {
       setIsPublishingVersion(false);
+    }
+  };
+
+  // Web Push Broadcaster Event Channel Handler
+  const handleBroadcastPushUpdate = async () => {
+    setIsSendingPushUpdate(true);
+    setPushUpdateSuccess('');
+    setPushUpdateError('');
+    
+    try {
+      const activeVer = newVersionInput.trim() || appVersionConfig.latestVersion || '1.2.0';
+      const notes = newReleaseNotesInput.trim() || 'A new optimized software release is ready for installation over-the-air.';
+      
+      const res = await fetch('/api/send-broadcast-push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: `📣 New Update Released (v${activeVer})`,
+          body: `An over-the-air software package is ready: ${notes}`,
+          category: 'announcements',
+          targetGroup: 'all'
+        })
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        setPushUpdateSuccess(`Successful push broadcast dispatched! ${data.count || 0} active devices are being notified of the latest app version.`);
+      } else {
+        const errData = await res.json();
+        setPushUpdateError(errData.error || 'Failed to dispatch notification over push channels.');
+      }
+    } catch (err: any) {
+      console.error(err);
+      setPushUpdateError(err.message || 'Network error while broadcasting live push updates.');
+    } finally {
+      setIsSendingPushUpdate(false);
     }
   };
 
@@ -2090,18 +2129,47 @@ export default function AdminDashboard({
                   />
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={isPublishingVersion || !newVersionInput.trim()}
-                  className="w-full py-2.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 hover:from-emerald-500 hover:to-indigo-500 disabled:opacity-50 text-white font-sans font-extrabold text-xs uppercase tracking-widest rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer border border-emerald-400/10 focus:outline-none"
-                >
-                  {isPublishingVersion ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <RefreshCw className="w-3.5 h-3.5" />
-                  )}
-                  <span>{isPublishingVersion ? 'Transmitting OTA Release...' : 'Send Updates to Users'}</span>
-                </button>
+                {/* Save and Publish Button */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                  <button
+                    type="submit"
+                    disabled={isPublishingVersion || !newVersionInput.trim()}
+                    className="w-full py-2.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-650 hover:from-emerald-500 hover:to-indigo-550 disabled:opacity-50 text-white font-sans font-extrabold text-[11px] uppercase tracking-wider rounded-xl transition-all shadow-lg flex items-center justify-center gap-1.5 cursor-pointer border border-emerald-400/10 focus:outline-none"
+                  >
+                    {isPublishingVersion ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <RefreshCw className="w-3.5 h-3.5" />
+                    )}
+                    <span>{isPublishingVersion ? 'Saving Release...' : 'Save OTA Config'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleBroadcastPushUpdate}
+                    disabled={isSendingPushUpdate || !newVersionInput.trim()}
+                    className="w-full py-2.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 disabled:opacity-50 text-white font-sans font-extrabold text-[11px] uppercase tracking-wider rounded-xl transition-all shadow-lg flex items-center justify-center gap-1.5 cursor-pointer border border-indigo-400/10 focus:outline-none"
+                  >
+                    {isSendingPushUpdate ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Smartphone className="w-3.5 h-3.5 text-indigo-300" />
+                    )}
+                    <span>{isSendingPushUpdate ? 'Broadcasting...' : 'Broadcast Push Notification'}</span>
+                  </button>
+                </div>
+
+                {pushUpdateError && (
+                  <div className="p-3 rounded-xl bg-rose-550/10 border border-rose-500/30 text-rose-300 text-[11px] leading-relaxed animate-fadeIn">
+                    {pushUpdateError}
+                  </div>
+                )}
+
+                {pushUpdateSuccess && (
+                  <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[11px] leading-relaxed animate-fadeIn">
+                    {pushUpdateSuccess}
+                  </div>
+                )}
               </form>
             </GlassCard>
           </div>
