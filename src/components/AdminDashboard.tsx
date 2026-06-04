@@ -48,7 +48,7 @@ export default function AdminDashboard({
   const [isRevokingSub, setIsRevokingSub] = useState<string | null>(null);
 
   // Bottom navigation state
-  const [activeAdminTab, setActiveAdminTab] = useState<'dashboard' | 'settings' | 'feedback' | 'departments' | 'payments'>('dashboard');
+  const [activeAdminTab, setActiveAdminTab] = useState<'dashboard' | 'settings' | 'feedback' | 'departments' | 'traffic_payments'>('dashboard');
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
   const [unreadFeedbacksCount, setUnreadFeedbacksCount] = useState(0);
 
@@ -1362,60 +1362,6 @@ export default function AdminDashboard({
               </GlassCard>
             </div>
 
-            {/* Real-time Traffic Metrics Grid */}
-            {(() => {
-              const nowTime = new Date().getTime();
-              
-              const dailyTraffic = trafficList.filter(t => {
-                const tDate = new Date(t.timestamp || t.registeredAt || 0);
-                return (nowTime - tDate.getTime()) <= 24 * 60 * 60 * 1000;
-              }).length;
-
-              const weeklyTraffic = trafficList.filter(t => {
-                const tDate = new Date(t.timestamp || t.registeredAt || 0);
-                return (nowTime - tDate.getTime()) <= 7 * 24 * 60 * 60 * 1000;
-              }).length;
-
-              const monthlyTraffic = trafficList.filter(t => {
-                const tDate = new Date(t.timestamp || t.registeredAt || 0);
-                return (nowTime - tDate.getTime()) <= 30 * 24 * 60 * 60 * 1000;
-              }).length;
-
-              return (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <GlassCard className="p-4 bg-slate-950/40 border-slate-900 relative">
-                    <Activity className="w-8 h-8 text-cyan-400/20 absolute right-4 top-4 font-black" />
-                    <h4 className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 font-bold">Daily App Traffic</h4>
-                    <p className="text-3xl font-display font-black text-cyan-400 mt-1">{dailyTraffic}</p>
-                    <div className="text-[10px] text-slate-400 mt-2 flex items-center gap-1.5 font-mono">
-                      <div className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-pulse" />
-                      <span>Unique active users (last 24 hrs)</span>
-                    </div>
-                  </GlassCard>
-
-                  <GlassCard className="p-4 bg-slate-950/40 border-slate-900 relative">
-                    <TrendingUp className="w-8 h-8 text-indigo-400/20 absolute right-4 top-4 font-black" />
-                    <h4 className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 font-bold">Weekly App Traffic</h4>
-                    <p className="text-3xl font-display font-black text-indigo-400 mt-1">{weeklyTraffic}</p>
-                    <div className="text-[10px] text-slate-400 mt-2 flex items-center gap-1.5 font-mono">
-                      <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full" />
-                      <span>Active user counters (last 7 days)</span>
-                    </div>
-                  </GlassCard>
-
-                  <GlassCard className="p-4 bg-slate-950/40 border-slate-900 relative">
-                    <BarChart2 className="w-8 h-8 text-violet-400/20 absolute right-4 top-4 font-black" />
-                    <h4 className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 font-bold">Monthly App Traffic</h4>
-                    <p className="text-3xl font-display font-black text-violet-400 mt-1">{monthlyTraffic}</p>
-                    <div className="text-[10px] text-slate-400 mt-2 flex items-center gap-1.5 font-mono">
-                      <div className="w-1.5 h-1.5 bg-violet-500 rounded-full" />
-                      <span>Active database hits (last 30 days)</span>
-                    </div>
-                  </GlassCard>
-                </div>
-              );
-            })()}
-
             {/* Storage diagnostics calculation */}
             {(() => {
               const estimatedBytes = (dbStats.usersCount * 500) + (dbStats.subsCount * 300) + (dbStats.activitiesCount * 400) + (dbStats.deadlinesCount * 300) + (dbStats.announcementsCount * 600) + (dbStats.feedbacksCount * 800) + 12800; // includes 12.8KB baseline
@@ -1953,14 +1899,14 @@ export default function AdminDashboard({
               </div>
             </div>
           </div>
-        ) : activeAdminTab === 'payments' ? (
+        ) : activeAdminTab === 'traffic_payments' ? (
           <div className="max-w-5xl mx-auto space-y-6 pb-32 animate-fadeIn">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-900/60 pb-3">
               <div className="flex items-center gap-2">
-                <Coins className="w-5 h-5 text-indigo-400 shrink-0" />
+                <BarChart2 className="w-5 h-5 text-indigo-400 shrink-0 animate-pulse" />
                 <div>
-                  <h3 className="text-sm font-display font-bold text-slate-100">Student Subscription Payment Records</h3>
-                  <p className="text-[10px] text-slate-450 font-sans mt-0.5">Live audit trail of student ₦1,000 semester payments processed synchronously via Paystack gateways.</p>
+                  <h3 className="text-sm font-display font-bold text-slate-100 font-bold">App Traffic & Financial Analytics</h3>
+                  <p className="text-[10px] text-slate-450 font-sans mt-0.5">Live metrics tracking app traffic hits synchronized with standard semester student subscription fee revenues.</p>
                 </div>
               </div>
               <div className="text-xs font-mono text-slate-400 bg-slate-950/80 px-4 py-2 rounded-2xl border border-slate-900">
@@ -1968,71 +1914,144 @@ export default function AdminDashboard({
               </div>
             </div>
 
+            {/* Apps Traffic Metrics Cards Grid */}
+            {(() => {
+              const nowTime = new Date().getTime();
+              
+              const dailyTraffic = trafficList.filter(t => {
+                const tDate = new Date(t.timestamp || t.registeredAt || 0);
+                return (nowTime - tDate.getTime()) <= 24 * 60 * 60 * 1000;
+              }).length;
+
+              const weeklyTraffic = trafficList.filter(t => {
+                const tDate = new Date(t.timestamp || t.registeredAt || 0);
+                return (nowTime - tDate.getTime()) <= 7 * 24 * 60 * 60 * 1000;
+              }).length;
+
+              const monthlyTraffic = trafficList.filter(t => {
+                const tDate = new Date(t.timestamp || t.registeredAt || 0);
+                return (nowTime - tDate.getTime()) <= 30 * 24 * 60 * 60 * 1000;
+              }).length;
+
+              const revenueAmount = paymentsList.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
+
+              return (
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                  <GlassCard className="p-4 bg-slate-950/40 border-slate-900/60 relative">
+                    <Activity className="w-8 h-8 text-cyan-400/20 absolute right-4 top-4 font-black" />
+                    <h4 className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 font-bold">Daily App Traffic</h4>
+                    <p className="text-2xl font-display font-black text-cyan-400 mt-1">{dailyTraffic}</p>
+                    <div className="text-[10px] text-slate-450 mt-2 flex items-center gap-1.5 font-mono">
+                      <div className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-pulse" />
+                      <span>Last 24 hrs active users</span>
+                    </div>
+                  </GlassCard>
+
+                  <GlassCard className="p-4 bg-slate-950/40 border-slate-900/60 relative">
+                    <TrendingUp className="w-8 h-8 text-indigo-400/20 absolute right-4 top-4 font-black" />
+                    <h4 className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 font-bold">Weekly App Traffic</h4>
+                    <p className="text-2xl font-display font-black text-indigo-400 mt-1">{weeklyTraffic}</p>
+                    <div className="text-[10px] text-slate-450 mt-2 flex items-center gap-1.5 font-mono">
+                      <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full" />
+                      <span>Last 7 days unique sessions</span>
+                    </div>
+                  </GlassCard>
+
+                  <GlassCard className="p-4 bg-slate-950/40 border-slate-900/60 relative">
+                    <BarChart2 className="w-8 h-8 text-violet-400/20 absolute right-4 top-4 font-black" />
+                    <h4 className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 font-bold">Monthly App Traffic</h4>
+                    <p className="text-2xl font-display font-black text-violet-400 mt-1">{monthlyTraffic}</p>
+                    <div className="text-[10px] text-slate-450 mt-2 flex items-center gap-1.5 font-mono">
+                      <div className="w-1.5 h-1.5 bg-violet-500 rounded-full" />
+                      <span>Last 30 days overall hits</span>
+                    </div>
+                  </GlassCard>
+
+                  <GlassCard className="p-4 bg-slate-950/40 border-slate-900/60 relative bg-emerald-950/5">
+                    <Coins className="w-8 h-8 text-emerald-400/20 absolute right-4 top-4 font-black" />
+                    <h4 className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 font-bold">Gross Revenue</h4>
+                    <p className="text-2xl font-display font-black text-emerald-400 mt-1">₦{revenueAmount.toLocaleString()}</p>
+                    <div className="text-[10px] text-emerald-500 mt-2 flex items-center gap-1.5 font-mono">
+                      <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+                      <span>Semester collection pool</span>
+                    </div>
+                  </GlassCard>
+                </div>
+              );
+            })()}
+
             {/* Payments Table */}
-            <GlassCard className="bg-slate-950/40 border-slate-900 p-0 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-900 bg-slate-950/80 text-[10px] font-mono uppercase tracking-wider text-slate-400 select-none">
-                      <th className="py-3.5 px-4 font-bold">Student Details</th>
-                      <th className="py-3.5 px-4 font-bold">Matric Number</th>
-                      <th className="py-3.5 px-4 font-bold">Transaction Ref</th>
-                      <th className="py-3.5 px-4 font-bold">Amount Paid</th>
-                      <th className="py-3.5 px-4 font-bold">Processed Date</th>
-                      <th className="py-3.5 px-4 font-bold text-center">Gateway Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-900/20">
-                    {paymentsList.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="py-8 text-center text-xs text-slate-550 font-mono">
-                          No processed payment receipts detected on database channels.
-                        </td>
+            <div>
+              <div className="flex items-center gap-1.5 mb-3">
+                <Coins className="w-4 h-4 text-emerald-400 shrink-0" />
+                <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-300">Transaction Audit History</h4>
+              </div>
+
+              <GlassCard className="bg-slate-950/40 border-slate-900 p-0 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-900 bg-slate-950/80 text-[10px] font-mono uppercase tracking-wider text-slate-400 select-none">
+                        <th className="py-3.5 px-4 font-bold">Student Details</th>
+                        <th className="py-3.5 px-4 font-bold">Matric Number</th>
+                        <th className="py-3.5 px-4 font-bold">Transaction Ref</th>
+                        <th className="py-3.5 px-4 font-bold">Amount Paid</th>
+                        <th className="py-3.5 px-4 font-bold">Processed Date</th>
+                        <th className="py-3.5 px-4 font-bold text-center">Gateway Status</th>
                       </tr>
-                    ) : (
-                      paymentsList.map((payment) => (
-                        <tr key={payment.id} className="hover:bg-slate-950/30 transition-colors text-xs font-sans">
-                          {/* Student Details */}
-                          <td className="py-3.5 px-4">
-                            <div className="font-semibold text-slate-200">{payment.name || 'Student'}</div>
-                            <div className="text-[10px] text-slate-500 font-mono mt-0.5">{payment.email || 'N/A'}</div>
-                          </td>
-                          {/* Matric Number */}
-                          <td className="py-3.5 px-4 font-mono select-all text-slate-300 pb-1">
-                            {payment.matricNumber || 'N/A'}
-                          </td>
-                          {/* Reference */}
-                          <td className="py-3.5 px-4 font-mono select-all text-indigo-400 text-[11px]">
-                            {payment.reference || payment.id}
-                          </td>
-                          {/* Amount */}
-                          <td className="py-3.5 px-4 font-bold text-slate-200 font-sans">
-                            ₦{(Number(payment.amount) || 0).toLocaleString()}
-                          </td>
-                          {/* Processed Date */}
-                          <td className="py-3.5 px-4 font-mono text-[10.5px] text-slate-400">
-                            {payment.paidAt ? new Date(payment.paidAt).toLocaleString(undefined, {
-                              year: 'numeric',
-                              month: 'short',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            }) : 'N/A'}
-                          </td>
-                          {/* Status */}
-                          <td className="py-3.5 px-4 text-center">
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold font-mono px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-[0_0_8px_rgba(16,185,129,0.1)]">
-                              <CheckCircle className="w-3 h-3 text-emerald-400 shrink-0" />
-                              SUCCESS
-                            </span>
+                    </thead>
+                    <tbody className="divide-y divide-slate-900/20">
+                      {paymentsList.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="py-8 text-center text-xs text-slate-550 font-mono">
+                            No processed payment receipts detected on database channels.
                           </td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </GlassCard>
+                      ) : (
+                        paymentsList.map((payment) => (
+                          <tr key={payment.id} className="hover:bg-slate-950/30 transition-colors text-xs font-sans">
+                            {/* Student Details */}
+                            <td className="py-3.5 px-4">
+                              <div className="font-semibold text-slate-200">{payment.name || 'Student'}</div>
+                              <div className="text-[10px] text-slate-500 font-mono mt-0.5">{payment.email || 'N/A'}</div>
+                            </td>
+                            {/* Matric Number */}
+                            <td className="py-3.5 px-4 font-mono select-all text-slate-300 pb-1">
+                              {payment.matricNumber || 'N/A'}
+                            </td>
+                            {/* Reference */}
+                            <td className="py-3.5 px-4 font-mono select-all text-indigo-400 text-[11px]">
+                              {payment.reference || payment.id}
+                            </td>
+                            {/* Amount */}
+                            <td className="py-3.5 px-4 font-bold text-slate-200 font-sans">
+                              ₦{(Number(payment.amount) || 0).toLocaleString()}
+                            </td>
+                            {/* Processed Date */}
+                            <td className="py-3.5 px-4 font-mono text-[10.5px] text-slate-400">
+                              {payment.paidAt ? new Date(payment.paidAt).toLocaleString(undefined, {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              }) : 'N/A'}
+                            </td>
+                            {/* Status */}
+                            <td className="py-3.5 px-4 text-center">
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold font-mono px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-[0_0_8px_rgba(16,185,129,0.1)]">
+                                <CheckCircle className="w-3 h-3 text-emerald-400 shrink-0" />
+                                SUCCESS
+                              </span>
+                            </td>
+                          </tr>
+                        )
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </GlassCard>
+            </div>
           </div>
         ) : (
           <div className="max-w-4xl mx-auto space-y-6 pb-32">
@@ -2766,12 +2785,12 @@ export default function AdminDashboard({
           </button>
 
           <button
-            onClick={() => setActiveAdminTab('payments')}
+            onClick={() => setActiveAdminTab('traffic_payments')}
             className="relative flex flex-col items-center justify-center py-1 px-2.5 transition-all duration-300 rounded-xl outline-none cursor-pointer"
           >
             <div
               className={`flex items-center justify-center p-1.5 rounded-lg transition-colors duration-300 ${
-                activeAdminTab === 'payments'
+                activeAdminTab === 'traffic_payments'
                   ? 'text-indigo-400 bg-indigo-500/10'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
@@ -2780,12 +2799,12 @@ export default function AdminDashboard({
             </div>
             <span
               className={`text-[9.5px] mt-0.5 font-medium tracking-wide font-sans transition-colors duration-300 ${
-                activeAdminTab === 'payments' ? 'text-indigo-300' : 'text-slate-500'
+                activeAdminTab === 'traffic_payments' ? 'text-indigo-300' : 'text-slate-500'
               }`}
             >
-              Payments
+              Traffic & Payments
             </span>
-            {activeAdminTab === 'payments' && (
+            {activeAdminTab === 'traffic_payments' && (
               <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-indigo-400 rounded-full shadow-[0_0_8px_rgba(99,102,241,0.8)]" />
             )}
           </button>
