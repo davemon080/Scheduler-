@@ -470,9 +470,9 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
             <GraduationCap className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-4xl font-display font-bold tracking-tight bg-gradient-to-r from-slate-100 via-indigo-200 to-violet-300 bg-clip-text text-transparent">
-            ICH100L
+            Scheduler
           </h1>
-          <p className="text-sm font-mono text-slate-400 mt-1">Chemistry Activities & Broadcasts Portal</p>
+          <p className="text-sm font-mono text-slate-400 mt-1">Activities & Forecast Scheduler Portal</p>
         </div>
 
         <GlassCard className="border border-slate-800/80 shadow-2xl relative overflow-hidden backdrop-blur-2xl">
@@ -532,7 +532,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                     disabled={isAuthenticating}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="e.g. student@ich100l.edu"
+                    placeholder="e.g. student@scheduler.edu"
                     className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-slate-100 text-base focus:outline-none focus:border-indigo-500 transition-colors disabled:opacity-50"
                   />
                 </div>
@@ -626,7 +626,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                     disabled={isAuthenticating}
                     value={forgotEmail}
                     onChange={(e) => setForgotEmail(e.target.value)}
-                    placeholder="e.g. student@ich100l.edu"
+                    placeholder="e.g. student@scheduler.edu"
                     className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-slate-100 text-base focus:outline-none focus:border-indigo-500 transition-colors disabled:opacity-50"
                   />
                 </div>

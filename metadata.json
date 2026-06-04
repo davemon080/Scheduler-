@@ -1,6 +1,6 @@
 {
-  "name": "ICH100L",
-  "description": "Student activity schedule, assignments, deadlines monitor and announcements app for ICH100L course.",
+  "name": "Scheduler",
+  "description": "Student activity schedule, assignments, deadlines monitor and announcements app scheduler.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

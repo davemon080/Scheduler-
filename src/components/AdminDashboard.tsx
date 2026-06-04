@@ -9,7 +9,7 @@ import {
   Users, UserPlus, Shield, ShieldCheck, ShieldAlert, KeyRound, 
   Trash2, Search, Loader2, LogOut, RefreshCw, Sparkles, Check, AlertTriangle, 
   GraduationCap, Mail, Calendar, CheckCircle, Info, Plus, Settings, LayoutDashboard,
-  Ban, MessageSquare, Database, Edit3, Play, Square
+  Ban, MessageSquare, Database, Edit3, Play, Square, Smartphone
 } from 'lucide-react';
 import GlassCard from './GlassCard';
 import FeedbackPage from './FeedbackPage';
@@ -58,6 +58,20 @@ export default function AdminDashboard({
   const [deptCourseRepMatric, setDeptCourseRepMatric] = useState('');
   const [isSavingDept, setIsSavingDept] = useState(false);
   const [editingDeptId, setEditingDeptId] = useState<string | null>(null);
+
+  // OTA Release states
+  const [appVersionConfig, setAppVersionConfig] = useState<{
+    latestVersion: string;
+    releaseNotes: string;
+  }>({
+    latestVersion: '1.2.0',
+    releaseNotes: ''
+  });
+  const [newVersionInput, setNewVersionInput] = useState('');
+  const [newReleaseNotesInput, setNewReleaseNotesInput] = useState('');
+  const [isPublishingVersion, setIsPublishingVersion] = useState(false);
+  const [versionPubSuccess, setVersionPubSuccess] = useState('');
+  const [versionPubError, setVersionPubError] = useState('');
 
   // Password reset/management states
   const [currentPassword, setCurrentPassword] = useState('');
@@ -439,6 +453,32 @@ export default function AdminDashboard({
         try {
           setDepartments(JSON.parse(stored));
         } catch (_) {}
+      }
+    }
+    return () => unsubscribe();
+  }, []);
+
+  // Listen to live app version release config
+  useEffect(() => {
+    let unsubscribe = () => {};
+    if (db) {
+      try {
+        unsubscribe = onSnapshot(doc(db, 'system-config', 'app-version'), (snap) => {
+          if (snap.exists()) {
+            const data = snap.data();
+            const config = {
+              latestVersion: data.latestVersion || '1.2.0',
+              releaseNotes: data.releaseNotes || '🚀 A new software update is available.'
+            };
+            setAppVersionConfig(config);
+            setNewVersionInput(config.latestVersion);
+            setNewReleaseNotesInput(config.releaseNotes);
+          }
+        }, (err) => {
+          console.warn('[Admin] Live version config fetch fallback:', err);
+        });
+      } catch (err) {
+        console.error('[Admin] Live version subscription failed:', err);
       }
     }
     return () => unsubscribe();
@@ -988,6 +1028,34 @@ export default function AdminDashboard({
         type: 'success',
         message: 'Security credentials successfully updated.'
       });
+    }
+  };
+
+  // OTA Version Publisher Handler
+  const handlePublishNewVersion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newVersionInput.trim()) {
+      setVersionPubError('Please specify a valid software release version number.');
+      return;
+    }
+    
+    setIsPublishingVersion(true);
+    setVersionPubSuccess('');
+    setVersionPubError('');
+    
+    try {
+      await setDoc(doc(db, 'system-config', 'app-version'), {
+        latestVersion: newVersionInput.trim(),
+        releaseNotes: newReleaseNotesInput.trim() || '🚀 A new software update is available. Updates are loaded with state integrity engines & view alignments.',
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+      
+      setVersionPubSuccess('Software release version published successfully! All active users will detect this version and have the prompt on their next view.');
+    } catch (err: any) {
+      console.error(err);
+      setVersionPubError(err.message || 'Failed to update system config in Firestore.');
+    } finally {
+      setIsPublishingVersion(false);
     }
   };
 
@@ -1953,6 +2021,86 @@ export default function AdminDashboard({
                     <ShieldCheck className="w-3.5 h-3.5" />
                   )}
                   <span>{isChangingPass ? 'Updating Credentials...' : 'Save Security Key'}</span>
+                </button>
+              </form>
+            </GlassCard>
+
+            {/* Card 3: App Version & OTA Release Hub */}
+            <GlassCard className="p-6 bg-slate-950/60 border-slate-900 relative md:col-span-2">
+              <div className="absolute top-0 right-0 w-24 h-1 bg-gradient-to-l from-emerald-500 via-indigo-500 to-violet-600" />
+              
+              <h4 className="text-xs font-mono font-bold text-slate-200 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <Smartphone className="w-4 h-4 text-emerald-400" /> App Version & OTA Release Hub
+              </h4>
+              <p className="text-[10px] text-slate-400 mb-4 font-sans leading-normal">
+                Publish over-the-air updates to all student dashboards. When you publish a new software version number, students will instantly see an "Update Available" banner in their profiles.
+              </p>
+
+              <form onSubmit={handlePublishNewVersion} className="space-y-4">
+                {versionPubError && (
+                  <div className="p-3 rounded-xl bg-rose-550/10 border border-rose-500/30 text-rose-300 text-[11px] leading-relaxed">
+                    {versionPubError}
+                  </div>
+                )}
+
+                {versionPubSuccess && (
+                  <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[11px] leading-relaxed">
+                    {versionPubSuccess}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 block">Current Active Release</label>
+                    <div className="bg-slate-950 px-3.5 py-2.5 rounded-xl border border-slate-900 text-slate-300 text-xs font-mono">
+                      v{appVersionConfig.latestVersion || '1.2.0'}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 block">New Software Version</label>
+                    <input
+                      type="text"
+                      required
+                      value={newVersionInput}
+                      onChange={(e) => {
+                        setNewVersionInput(e.target.value);
+                        setVersionPubError('');
+                        setVersionPubSuccess('');
+                      }}
+                      placeholder="e.g., 1.3.6"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 placeholder:text-slate-600 font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 block">Release Notes & Package Details</label>
+                  <textarea
+                    required
+                    value={newReleaseNotesInput}
+                    onChange={(e) => {
+                      setNewReleaseNotesInput(e.target.value);
+                      setVersionPubError('');
+                      setVersionPubSuccess('');
+                    }}
+                    rows={3}
+                    placeholder="Explain features or performance patches (e.g., 🚀 Resolved minor bottlenecks on Android, optimized viewport height rendering on iOS layouts, updated database queries)."
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500 placeholder:text-slate-600 font-sans resize-none leading-relaxed"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isPublishingVersion || !newVersionInput.trim()}
+                  className="w-full py-2.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 hover:from-emerald-500 hover:to-indigo-500 disabled:opacity-50 text-white font-sans font-extrabold text-xs uppercase tracking-widest rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer border border-emerald-400/10 focus:outline-none"
+                >
+                  {isPublishingVersion ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-3.5 h-3.5" />
+                  )}
+                  <span>{isPublishingVersion ? 'Transmitting OTA Release...' : 'Send Updates to Users'}</span>
                 </button>
               </form>
             </GlassCard>

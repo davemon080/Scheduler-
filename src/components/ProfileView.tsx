@@ -32,7 +32,7 @@ import {
 import GlassCard from './GlassCard';
 import { DEFAULT_COURSE_REP_MATRIC } from '../data/defaultData';
 import { db, getSafeDocId } from '../lib/firebase';
-import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
 
 // Helper to load Paystack Inline SDK dynamically on demand
 const loadPaystackInProfile = (): Promise<void> => {
@@ -170,9 +170,42 @@ export default function ProfileView({
   const [subPaySuccess, setSubPaySuccess] = useState('');
 
   // OTA Update States
-  const [updateStep, setUpdateStep] = useState<'idle' | 'checking' | 'available' | 'updating' | 'success'>('available');
+  const [localVersion, setLocalVersion] = useState(() => localStorage.getItem('ich100l_client_app_version') || '1.2.0');
+  const [latestVersion, setLatestVersion] = useState('1.2.0');
+  const [releaseNotes, setReleaseNotes] = useState('🚀 A new software update is available.');
+  const [updateStep, setUpdateStep] = useState<'idle' | 'checking' | 'available' | 'updating' | 'success'>('idle');
   const [updatePercent, setUpdatePercent] = useState(0);
-  const [updateStatusText, setUpdateStatusText] = useState('New version available (v1.3.5)');
+  const [updateStatusText, setUpdateStatusText] = useState('System fully updated');
+
+  useEffect(() => {
+    const unsubVersion = onSnapshot(doc(db, 'system-config', 'app-version'), (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        const serverVer = data.latestVersion || '1.2.0';
+        setLatestVersion(serverVer);
+        if (data.releaseNotes) {
+          setReleaseNotes(data.releaseNotes);
+        }
+        
+        if (localVersion !== serverVer) {
+          setUpdateStep('available');
+          setUpdateStatusText(`New version available (v${serverVer})`);
+        } else {
+          setUpdateStep('idle');
+          setUpdateStatusText('System fully updated');
+        }
+      } else {
+        // Default initialized if doc doesn't exist
+        setLatestVersion(localVersion);
+        setUpdateStep('idle');
+        setUpdateStatusText('System fully updated');
+      }
+    }, (error) => {
+      console.warn('[ProfileView] Failed to listen to app-version:', error);
+    });
+
+    return () => unsubVersion();
+  }, [localVersion]);
 
   // Notification capabilities checking & iOS alignment handler
   const [permissionStatus, setPermissionStatus] = useState<string>('default');
@@ -811,6 +844,7 @@ export default function ProfileView({
         setUpdatePercent(100);
         setUpdateStep('success');
         setUpdateStatusText('Update installed successfully! Restarting runtime...');
+        localStorage.setItem('ich100l_client_app_version', latestVersion);
         setTimeout(() => {
           window.location.reload();
         }, 1200);
@@ -1408,18 +1442,40 @@ export default function ProfileView({
                 </div>
                 <div>
                   <h4 className="text-sm font-sans font-medium text-slate-200">App Version & Update Hub</h4>
-                  <p className="text-xs text-slate-500 font-sans">Current: v1.2.0 • Latest: v1.3.5</p>
+                  <p className="text-xs text-slate-500 font-sans">Current: v{localVersion} • Latest: v{latestVersion}</p>
                 </div>
               </div>
-              <span className="text-[10px] font-mono font-bold tracking-wider px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-400 uppercase select-none animate-pulse">
-                Update Available
-              </span>
+              {localVersion !== latestVersion && updateStep !== 'success' ? (
+                <span className="text-[10px] font-mono font-bold tracking-wider px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-400 uppercase select-none animate-pulse">
+                  Update Available
+                </span>
+              ) : (
+                <span className="text-[10px] font-mono font-bold tracking-wider px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 uppercase select-none">
+                  Up To Date
+                </span>
+              )}
             </div>
+
+            {updateStep === 'idle' && (
+              <div className="space-y-3">
+                <div className="p-3 rounded-xl bg-emerald-950/20 border border-emerald-500/10 text-xs text-slate-300 font-sans leading-relaxed">
+                  ✨ <strong className="text-emerald-400">Your application is fully up to date!</strong> No pending system or package updates are registered at this moment. You will be notified when the course instructor launches a new OTA branch.
+                </div>
+                <button
+                  type="button"
+                  disabled
+                  className="w-full py-2.5 rounded-xl bg-slate-850 text-slate-500 border-0 text-xs font-bold font-sans flex items-center justify-center gap-2 cursor-not-allowed select-none outline-none opacity-55"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                  <span>No Updates Pending</span>
+                </button>
+              </div>
+            )}
 
             {updateStep === 'available' && (
               <div className="space-y-3">
                 <div className="p-3 rounded-xl bg-indigo-950/40 border border-indigo-500/10 text-xs text-slate-300 font-sans leading-relaxed">
-                  🚀 A new optimized software package <strong className="text-indigo-400">v1.3.5</strong> is ready for download! This resolves performance bottlenecks on both <strong className="text-white">Android</strong> and <strong className="text-white">iOS</strong> device layouts while enabling faster push loading cycles.
+                  {releaseNotes}
                 </div>
                 <button
                   type="button"
@@ -1427,7 +1483,7 @@ export default function ProfileView({
                   className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white border-0 text-xs font-bold font-sans flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-indigo-500/15 hover:shadow-indigo-500/30 transition-all select-none outline-none"
                 >
                   <RefreshCcw className="w-3.5 h-3.5 text-indigo-300 shrink-0" />
-                  <span>Update to v1.3.5 (Instant Over-The-Air)</span>
+                  <span>Update to v{latestVersion} (Instant Over-The-Air)</span>
                 </button>
               </div>
             )}
@@ -1488,6 +1544,28 @@ export default function ProfileView({
             </div>
           </div>
         </button>
+
+        {/* NEXLIFY INNOVATION Branding Footer */}
+        <div id="nexlify_branding_footer" className="flex flex-col items-center justify-center pt-8 pb-4 gap-2.5 opacity-80 hover:opacity-100 transition-opacity duration-300">
+          <div className="relative">
+            <div className="absolute inset-0 bg-indigo-500/20 rounded-xl blur-md scale-90" />
+            <img 
+              id="nexlify_logo"
+              src="https://iili.io/Bp0LZ3Q.jpg" 
+              alt="NEXLIFY INNOVATION Logo" 
+              className="w-14 h-14 rounded-xl border border-slate-800 shadow-md relative z-10 object-cover"
+              referrerPolicy="no-referrer"
+            />
+          </div>
+          <div className="text-center">
+            <p className="text-[10px] font-mono tracking-widest text-slate-500 uppercase font-semibold">
+              Powered by
+            </p>
+            <h5 className="text-xs font-sans font-bold text-transparent bg-clip-text bg-gradient-to-r from-slate-200 via-indigo-200 to-slate-200 tracking-wide mt-0.5">
+              NEXLIFY INNOVATION
+            </h5>
+          </div>
+        </div>
       </div>
     </div>
   );

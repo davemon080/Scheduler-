@@ -1785,6 +1785,7 @@ export default function App() {
             daySelected={daySelected}
             setDaySelected={setDaySelected}
             onOpenCalendar={() => setActiveTab('calendar' as any)}
+            appTitle={appTitle}
           />
         );
       case 'calendar' as any:

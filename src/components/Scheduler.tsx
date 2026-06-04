@@ -18,6 +18,7 @@ interface SchedulerProps {
   daySelected: DayOfWeek;
   setDaySelected: (day: DayOfWeek) => void;
   onOpenCalendar: () => void;
+  appTitle?: string;
 }
 
 const DAYS_OF_WEEK: DayOfWeek[] = [
@@ -38,7 +39,8 @@ export default function Scheduler({
   onEditActivity,
   daySelected,
   setDaySelected,
-  onOpenCalendar
+  onOpenCalendar,
+  appTitle = 'ICH100L'
 }: SchedulerProps) {
   const [hoveredActivity, setHoveredActivity] = useState<string | null>(null);
   const [now, setNow] = useState<Date>(new Date());
@@ -256,7 +258,7 @@ export default function Scheduler({
           </p>
         </div>
         <div className="text-xs font-mono bg-slate-950 px-2.5 py-1 rounded-full border border-slate-800 text-indigo-400 uppercase tracking-wider font-semibold">
-          ICH100L
+          {appTitle}
         </div>
       </div>
 
