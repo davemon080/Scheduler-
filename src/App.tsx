@@ -1976,7 +1976,7 @@ export default function App() {
   }
 
   // If logged in under admin parameters, bootstrap the whole new Admin Dashboard instead of the student interface
-  if (currentUser.isAdmin || currentUser.matricNumber === '2026/ps/ich/0034' || currentUser.email === 'daveimagodei@gmail.com') {
+  if (currentUser.isAdmin || currentUser.matricNumber === '2026/ps/ich/0034') {
     return (
       <AdminDashboard
         currentUser={currentUser}

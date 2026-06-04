@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Calendar, Clock, MapPin, Tag, User, Trash2, BookOpen, AlertCircle, PlusCircle, Pencil, Globe, ExternalLink, Sparkles } from 'lucide-react';
 import { DayOfWeek, Activity } from '../types';
 import GlassCard from './GlassCard';
+import { formatTimerange } from '../lib/time';
 
 interface SchedulerProps {
   activities: Activity[];
@@ -369,7 +370,7 @@ export default function Scheduler({
                           <div className="flex items-center gap-2 text-slate-400">
                             <Clock className="w-3.5 h-3.5 text-indigo-400/80 shrink-0" />
                             <span className="text-xs font-mono font-medium text-slate-300">
-                              {activity.timeStart} - {activity.timeEnd}
+                              {formatTimerange(activity.timeStart, activity.timeEnd)}
                             </span>
                           </div>
 

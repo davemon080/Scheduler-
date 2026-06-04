@@ -287,28 +287,73 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       return;
     }
 
+    // 1. FAST-PATH: Instant Cache Verification (for users logging in again on same browser)
+    const localDB = getUsersDB();
+    const inputNormalizeLocal = cleanedMatric.toLowerCase().replace(/[\/-]/g, '').trim();
+    const existingKey = Object.keys(localDB).find(k => {
+      const keyNormalize = k.toLowerCase().replace(/[\/-]/g, '').trim();
+      return keyNormalize === inputNormalizeLocal || k.toLowerCase().trim() === cleanedMatric.toLowerCase().trim();
+    });
+    const existingUser = existingKey ? localDB[existingKey] : null;
+
+    if (existingUser && existingUser.password === password) {
+      if (existingUser.email && existingUser.email.trim().toLowerCase() !== email.trim().toLowerCase()) {
+        setError('The provided email does not match the registered institutional email for this matriculation number.');
+        setIsAuthenticating(false);
+        return;
+      }
+
+      const matchMatric = existingUser.matricNumber || existingKey || cleanedMatric;
+      const finalUser = {
+        email: existingUser.email,
+        matricNumber: matchMatric,
+        name: existingUser.name,
+        createdAt: existingUser.createdAt,
+        activeSessionId: sessionId,
+        isAdmin: existingUser.isAdmin || false,
+        isCourseRep: existingUser.isCourseRep || false,
+      };
+
+      // Complete login instantly with cache!
+      saveUserToDB(finalUser);
+      onLoginSuccess(finalUser);
+      setIsAuthenticating(false);
+
+      // Silently sync session ID online in the background without blocking the user
+      (async () => {
+        try {
+          const safeIdLower = getSafeDocId(matchMatric.toLowerCase());
+          await setDoc(doc(db, 'users', safeIdLower), { activeSessionId: sessionId }, { merge: true });
+        } catch (e) {
+          console.warn('[Session] Background silent session ID sync bypassed:', e);
+        }
+      })();
+      return;
+    }
+
+    // 2. SLOW-PATH: Online Firestore lookup (First login or cache missing)
     try {
-      // 1. Check online Firestore DB by testing lowercase, uppercase, and original formats
+      // Check online Firestore DB by testing lowercase, uppercase, and original formats IN PARALLEL
       const safeIdLower = getSafeDocId(cleanedMatric.toLowerCase());
       const safeIdUpper = getSafeDocId(cleanedMatric.toUpperCase());
       const safeIdOriginal = getSafeDocId(cleanedMatric);
 
-      let docSnap = await getDoc(doc(db, 'users', safeIdLower));
-      if (!docSnap.exists() && safeIdUpper !== safeIdLower) {
-        docSnap = await getDoc(doc(db, 'users', safeIdUpper));
-      }
-      if (!docSnap.exists() && safeIdOriginal !== safeIdLower && safeIdOriginal !== safeIdUpper) {
-        docSnap = await getDoc(doc(db, 'users', safeIdOriginal));
-      }
+      const [snapLower, snapUpper, snapOriginal] = await Promise.all([
+        getDoc(doc(db, 'users', safeIdLower)),
+        safeIdUpper !== safeIdLower ? getDoc(doc(db, 'users', safeIdUpper)) : Promise.resolve(null),
+        (safeIdOriginal !== safeIdLower && safeIdOriginal !== safeIdUpper) ? getDoc(doc(db, 'users', safeIdOriginal)) : Promise.resolve(null),
+      ]);
+
+      let docSnap = snapLower.exists() ? snapLower : (snapUpper && snapUpper.exists() ? snapUpper : (snapOriginal && snapOriginal.exists() ? snapOriginal : null));
 
       let userData: any = null;
       let matchedRef: any = null;
 
-      if (docSnap.exists()) {
+      if (docSnap) {
         userData = docSnap.data();
         matchedRef = docSnap.ref;
       } else {
-        // Double-check: scan with stripping to accept any capitalization or format
+        // Double-check fallback: scan with stripping (only if direct lookups fail)
         try {
           const allUsersSnap = await getDocs(collection(db, 'users'));
           const inputNormalize = cleanedMatric.toLowerCase().replace(/[\/-]/g, '').trim();
@@ -352,103 +397,45 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
           isCourseRep: userData.isCourseRep || false,
         };
 
-        // Sync cache
+        // Sync cache and complete login
         saveUserToDB(finalUser);
         onLoginSuccess(finalUser);
         setIsAuthenticating(false);
         return;
       }
     } catch (err) {
-      console.warn('Fallback to LocalStorage cache due to error:', err);
+      console.warn('Online Firestore call failed, checking cache:', err);
     }
 
-    // 2. Cache Fallback check
-    const localDB = getUsersDB();
-    const inputNormalizeLocal = cleanedMatric.toLowerCase().replace(/[\/-]/g, '').trim();
-    const existingKey = Object.keys(localDB).find(k => {
-      const keyNormalize = k.toLowerCase().replace(/[\/-]/g, '').trim();
-      return keyNormalize === inputNormalizeLocal || k.toLowerCase().trim() === cleanedMatric.toLowerCase().trim();
-    });
-    const existingUser = existingKey ? localDB[existingKey] : null;
-
-    if (existingUser) {
-      if (existingUser.email && existingUser.email.trim().toLowerCase() !== email.trim().toLowerCase()) {
-        setError('The provided email does not match the registered institutional email for this matriculation number.');
-        setIsAuthenticating(false);
-        return;
-      }
-
-      if (existingUser.password !== password) {
-        setError('Incorrect password for this matriculation number.');
-        setIsAuthenticating(false);
-        return;
-      }
-
-      const matchMatric = existingUser.matricNumber || existingKey || cleanedMatric;
-
-      // Try syncing online session id in background even if login initially loaded offline
-      try {
-        const safeIdLower = getSafeDocId(matchMatric.toLowerCase());
-        const safeIdUpper = getSafeDocId(matchMatric.toUpperCase());
-        const safeIdOriginal = getSafeDocId(matchMatric);
-
-        let docRef = doc(db, 'users', safeIdLower);
-        let docSnap = await getDoc(docRef);
-        if (!docSnap.exists() && safeIdUpper !== safeIdLower) {
-          docRef = doc(db, 'users', safeIdUpper);
-          docSnap = await getDoc(docRef);
-        }
-        if (!docSnap.exists() && safeIdOriginal !== safeIdLower && safeIdOriginal !== safeIdUpper) {
-          docRef = doc(db, 'users', safeIdOriginal);
-          docSnap = await getDoc(docRef);
-        }
-
-        await setDoc(docRef, { activeSessionId: sessionId }, { merge: true });
-      } catch (errSync) {
-        console.warn('[Session] Silent background session ID sync missed:', errSync);
-      }
-
-      onLoginSuccess({
-        email: existingUser.email,
-        matricNumber: existingUser.matricNumber || matchMatric,
-        name: existingUser.name,
-        createdAt: existingUser.createdAt,
+    // 3. Setup dynamic account if they use course rep matric representing fresh first login
+    if (cleanedMatric.toLowerCase() === DEFAULT_COURSE_REP_MATRIC.toLowerCase()) {
+      const defaultRep = {
+        email: email.trim() || 'daveimagodei@gmail.com',
+        matricNumber: DEFAULT_COURSE_REP_MATRIC,
+        name: 'David Adebayo',
+        password: password,
+        createdAt: new Date().toISOString(),
         activeSessionId: sessionId,
-        isAdmin: existingUser.isAdmin || false,
-        isCourseRep: existingUser.isCourseRep || false,
+        isCourseRep: true,
+      };
+      try {
+        await setDoc(doc(db, 'users', getSafeDocId(DEFAULT_COURSE_REP_MATRIC)), defaultRep);
+      } catch (err) {
+        console.error(err);
+      }
+      saveUserToDB(defaultRep);
+      onLoginSuccess({
+        email: defaultRep.email,
+        matricNumber: defaultRep.matricNumber,
+        name: defaultRep.name,
+        createdAt: defaultRep.createdAt,
+        activeSessionId: sessionId,
+        isCourseRep: true,
       });
       setIsAuthenticating(false);
     } else {
-      // Setup dynamic account if they use course rep matric representing fresh first login
-      if (cleanedMatric.toLowerCase() === DEFAULT_COURSE_REP_MATRIC.toLowerCase()) {
-        const defaultRep = {
-          email: email.trim() || 'daveimagodei@gmail.com',
-          matricNumber: DEFAULT_COURSE_REP_MATRIC,
-          name: 'David Adebayo',
-          password: password,
-          createdAt: new Date().toISOString(),
-          activeSessionId: sessionId,
-          isCourseRep: true,
-        };
-        try {
-          await setDoc(doc(db, 'users', getSafeDocId(DEFAULT_COURSE_REP_MATRIC)), defaultRep);
-        } catch (err) {
-          console.error(err);
-        }
-        saveUserToDB(defaultRep);
-        onLoginSuccess({
-          email: defaultRep.email,
-          matricNumber: defaultRep.matricNumber,
-          name: defaultRep.name,
-          createdAt: defaultRep.createdAt,
-          activeSessionId: sessionId,
-          isCourseRep: true,
-        });
-        setIsAuthenticating(false);
-      } else {
-        setError('Matric number is not registered on this system. Please contact the administrator to register your credentials.');
-        setIsAuthenticating(false);
-      }
+      setError('Matric number is not registered on this system. Please contact the administrator to register your credentials.');
+      setIsAuthenticating(false);
     }
   };
 

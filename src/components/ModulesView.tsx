@@ -12,7 +12,8 @@ import {
   setDoc, 
   deleteDoc, 
   query, 
-  orderBy 
+  orderBy,
+  collectionGroup
 } from 'firebase/firestore';
 import { 
   BookOpen, 
@@ -122,6 +123,7 @@ export default function ModulesView({
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [currentModules, setCurrentModules] = useState<PdfModule[]>([]);
+  const [pdfCounts, setPdfCounts] = useState<{[courseId: string]: number}>({});
 
   // Search & Loading
   const [searchQuery, setSearchQuery] = useState('');
@@ -176,6 +178,27 @@ export default function ModulesView({
     });
 
     return () => unsubscribe();
+  }, []);
+
+  // 1b. Track individual PDF counts across all courses dynamically for the course cards in real-time
+  useEffect(() => {
+    try {
+      const unsubscribe = onSnapshot(collectionGroup(db, 'pdf-modules'), (snap) => {
+        const counts: {[courseId: string]: number} = {};
+        snap.forEach((docSnap) => {
+          const courseId = docSnap.ref.parent.parent?.id;
+          if (courseId) {
+            counts[courseId] = (counts[courseId] || 0) + 1;
+          }
+        });
+        setPdfCounts(counts);
+      }, (err) => {
+        console.warn('Silent warning: Failed to sync collectionGroup PDF totals.', err);
+      });
+      return () => unsubscribe();
+    } catch (e) {
+      console.error('collectionGroup subscript error', e);
+    }
   }, []);
 
   // 2. Fetch modules for selected course
@@ -469,10 +492,23 @@ export default function ModulesView({
                     >
                       <div className="flex justify-between items-start gap-3">
                         <div className="space-y-1 text-left flex-1">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="px-2.5 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/20 text-sm font-mono font-black text-indigo-400 uppercase">
                               {course.courseCode}
                             </span>
+                            {(() => {
+                              const count = pdfCounts[course.id] || 0;
+                              return (
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold flex items-center gap-1 shrink-0 ${
+                                  count > 0 
+                                    ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400' 
+                                    : 'bg-slate-800/20 border border-slate-800/40 text-slate-500'
+                                }`}>
+                                  <FileText className="w-3 h-3 text-indigo-400" />
+                                  <span>{count} {count === 1 ? 'PDF' : 'PDFs'}</span>
+                                </span>
+                              );
+                            })()}
                           </div>
                           <h3 className="text-xs font-display font-bold text-slate-100 group-hover:text-indigo-300 transition-colors">
                             {course.title}

@@ -8,6 +8,7 @@ import { motion } from 'motion/react';
 import { ArrowLeft, Clock, MapPin, Trash2, Pencil, Plus, ExternalLink, RefreshCw, Calendar, Tag, AlertTriangle } from 'lucide-react';
 import { DayOfWeek, Activity } from '../types';
 import GlassCard from './GlassCard';
+import { formatTimerange } from '../lib/time';
 
 interface DateScheduleViewProps {
   selectedDate: Date;
@@ -246,7 +247,7 @@ export default function DateScheduleView({
                             <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 pt-1 text-[10px] text-slate-500 font-sans">
                               <span className="flex items-center gap-1">
                                 <Clock className="w-3.5 h-3.5 text-indigo-400/80" />
-                                <span className="font-mono text-slate-300">{activity.timeStart} - {activity.timeEnd}</span>
+                                <span className="font-mono text-slate-300">{formatTimerange(activity.timeStart, activity.timeEnd)}</span>
                               </span>
                               <span className="hidden sm:inline text-slate-700">•</span>
                               <span className="flex items-center gap-1 truncate">
@@ -341,7 +342,7 @@ export default function DateScheduleView({
                         <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 pt-1 text-[10px] text-slate-600 font-sans">
                           <span className="flex items-center gap-1">
                             <Clock className="w-3.5 h-3.5 text-slate-705" />
-                            <span className="font-mono">{activity.timeStart} - {activity.timeEnd}</span>
+                            <span className="font-mono">{formatTimerange(activity.timeStart, activity.timeEnd)}</span>
                           </span>
                           <span className="hidden sm:inline text-slate-800">•</span>
                           <span className="flex items-center gap-1 truncate">
