@@ -1112,12 +1112,21 @@ export default function AdminDashboard({
         })
       });
       
-      if (res.ok) {
-        const data = await res.json();
-        setPushUpdateSuccess(`Successful push broadcast dispatched! ${data.count || 0} active devices are being notified of the latest app version.`);
+      let data: any = {};
+      let isJson = false;
+      try {
+        const text = await res.text();
+        data = JSON.parse(text);
+        isJson = true;
+      } catch (parseErr) {
+        console.warn('Failed parsing push broadcast response as JSON:', parseErr);
+      }
+
+      if (res.ok && isJson && data.success !== false) {
+        setPushUpdateSuccess(`Successful push broadcast dispatched! ${data.count ?? 0} active devices are being notified of the latest app version.`);
       } else {
-        const errData = await res.json();
-        setPushUpdateError(errData.error || 'Failed to dispatch notification over push channels.');
+        const errorMsg = data.error || data.message || 'The server returned an unexpected response. Please verify database connection.';
+        setPushUpdateError(errorMsg);
       }
     } catch (err: any) {
       console.error(err);

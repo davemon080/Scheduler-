@@ -282,6 +282,41 @@ export default function App() {
     };
   }, [currentUser]);
 
+  // OTA App Version Pop-up states and listeners
+  const [appLocalVersion, setAppLocalVersion] = useState(() => localStorage.getItem('ich100l_client_app_version') || '1.1.0');
+  const [appServerVersion, setAppServerVersion] = useState('');
+  const [appReleaseNotes, setAppReleaseNotes] = useState('An over-the-air software package is ready for installation.');
+  const [showOtaPopup, setShowOtaPopup] = useState(false);
+
+  useEffect(() => {
+    if (!currentUser || !db) return;
+
+    const unsubVersion = onSnapshot(doc(db, 'system-config', 'app-version'), (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        const serverVer = data.latestVersion || '1.2.0';
+        setAppServerVersion(serverVer);
+        if (data.releaseNotes) {
+          setAppReleaseNotes(data.releaseNotes);
+        }
+
+        const localVer = localStorage.getItem('ich100l_client_app_version') || '1.1.0';
+        setAppLocalVersion(localVer);
+
+        // Retrieve previously dismissed version from localStorage
+        const dismissedVer = localStorage.getItem('ich100l_dismissed_ota_version') || '';
+
+        if (localVer !== serverVer && dismissedVer !== serverVer) {
+          setShowOtaPopup(true);
+        }
+      }
+    }, (error) => {
+      console.warn('[App] Failed to listen to app-version:', error);
+    });
+
+    return () => unsubVersion();
+  }, [currentUser]);
+
   // Auto-sync Web Push subscription state on App startup and whenever user logs in
   useEffect(() => {
     if ('serviceWorker' in navigator) {
@@ -2184,6 +2219,80 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Real-time OTA App Update Dialog Block */}
+      <AnimatePresence>
+        {showOtaPopup && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-slate-950/85 z-[999999] flex flex-col items-center justify-center p-4 backdrop-blur-md"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.9, y: 20, opacity: 0 }}
+              transition={{ type: "spring", damping: 25, stiffness: 350 }}
+              className="glassmorphism p-6 rounded-2xl border border-indigo-500/30 max-w-sm w-full bg-slate-900/95 shadow-[0_20px_50px_rgba(0,0,0,0.8),0_0_30px_rgba(99,102,241,0.2)] text-center space-y-4 relative overflow-hidden"
+            >
+              {/* Internal abstract ambient glowing ring */}
+              <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-teal-400 via-indigo-500 to-purple-500" />
+              
+              <div className="p-3 w-16 h-16 rounded-2xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 flex items-center justify-center mx-auto shadow-[0_0_20px_rgba(99,102,241,0.15)] relative">
+                <Sparkles className="w-8 h-8 text-indigo-400 animate-pulse" />
+                <span className="absolute -top-1.5 -right-1.5 flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                </span>
+              </div>
+
+              <div>
+                <span className="text-[10px] font-mono font-black text-indigo-200 bg-indigo-500/20 border border-indigo-500/30 px-3 py-1 rounded-full uppercase tracking-widest leading-none">
+                  v{appServerVersion} Update Available
+                </span>
+                <h3 className="text-slate-100 font-display font-black text-lg mt-3">Ready over-the-air!</h3>
+                <p className="text-xs text-slate-400 font-sans mt-1 leading-relaxed">
+                  An optimized software release package is ready for immediate deployment on your device.
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-slate-950/45 border border-slate-800/60 text-left space-y-1.5 max-h-32 overflow-y-auto no-scrollbar">
+                <span className="text-[9px] uppercase font-mono tracking-wider font-extrabold text-indigo-400">What's New in this Build:</span>
+                <p className="text-xs text-slate-300 font-sans leading-relaxed whitespace-pre-line">
+                  {appReleaseNotes}
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    localStorage.setItem('ich100l_client_app_version', appServerVersion);
+                    setShowOtaPopup(false);
+                    window.location.reload();
+                  }}
+                  className="w-full py-3 bg-gradient-to-tr from-indigo-500 to-violet-600 hover:from-indigo-400 hover:to-violet-500 rounded-xl text-xs font-bold text-white transition-all shadow-[0_4px_16px_rgba(99,102,241,0.35)] cursor-pointer hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-1.5"
+                >
+                  <Loader2 className="w-3.5 h-3.5 text-white/80 animate-spin" />
+                  Apply Update & Reload
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={() => {
+                    localStorage.setItem('ich100l_dismissed_ota_version', appServerVersion);
+                    setShowOtaPopup(false);
+                  }}
+                  className="w-full py-2.5 bg-slate-800/50 hover:bg-slate-800 rounded-xl text-xs font-bold text-slate-300 hover:text-white transition-all cursor-pointer border border-slate-700/20"
+                >
+                  Remind Me Later
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Dynamic atmospheric decoration background grids */}
       <div className="absolute top-0 left-0 right-0 h-[400px] bg-gradient-to-b from-indigo-500/5 via-[#0f172a]/2 to-[#0f172a] pointer-events-none" />

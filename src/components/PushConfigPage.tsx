@@ -89,8 +89,17 @@ export default function PushConfigPage({
         })
       });
 
-      if (res.ok) {
-        const data = await res.json();
+      let data: any = {};
+      let isJson = false;
+      try {
+        const text = await res.text();
+        data = JSON.parse(text);
+        isJson = true;
+      } catch (parseErr) {
+        console.warn('Failed parsing push response in config page:', parseErr);
+      }
+
+      if (res.ok && isJson && data.success !== false) {
         setSendResult({
           success: true,
           message: `Targeted notification discharged successfully to both direct channels.`,
@@ -99,10 +108,10 @@ export default function PushConfigPage({
         setPushBody('');
         fetchStats();
       } else {
-        const errData = await res.json();
+        const errorMsg = data.error || data.message || 'The server returned an unexpected response format.';
         setSendResult({
           success: false,
-          message: errData.error || 'Failed to dispatch notification.'
+          message: errorMsg
         });
       }
     } catch (err: any) {

@@ -291,7 +291,7 @@ app.use("/uploads", express.static(uploadDir));
   app.post("/api/send-broadcast-push", async (req, res) => {
     let { title, body, category, targetGroup, targetValue, departmentId } = req.body;
     if (!title || !body) {
-      return res.status(400).json({ error: "Title and body parameters are required for broadcasting alerts." });
+      return res.json({ success: false, error: "Title and body parameters are required for broadcasting alerts." });
     }
 
     // Map departmentId parameter to targetGroup="department" / targetValue=departmentId for seamless targeting
@@ -301,7 +301,7 @@ app.use("/uploads", express.static(uploadDir));
     }
 
     if (!db) {
-      return res.status(500).json({ error: "Backend database connection is offline. Notification bypass initiated." });
+      return res.json({ success: false, error: "Backend database connection is offline. Notification bypass initiated." });
     }
 
     try {
@@ -402,6 +402,7 @@ app.use("/uploads", express.static(uploadDir));
       let successfulCount = 0;
       const sendPromises = matchingTargets.map(async (target) => {
         try {
+          if (!target.subscription || !target.subscription.endpoint) return;
           await webpush.sendNotification(target.subscription, payload, {
             TTL: 86400, // 24 hours Time-to-Live limit
             headers: {
@@ -413,8 +414,8 @@ app.use("/uploads", express.static(uploadDir));
         } catch (error: any) {
           // Log expired or inactive registrations for monitoring, but do not aggressively delete
           // the master database document to prevent permanent subscription loss on temporary drops
-          if (error.statusCode === 410 || error.statusCode === 404) {
-            console.warn(`[WebPush] Subscription marked inactive or expired on push service side for ID: ${target.id} (sourced from ${target.source}, statusCode: ${error.statusCode})`);
+          if (error && error.statusCode === 410) {
+            console.warn(`[WebPush] Subscription marked inactive or expired on push service side for ID: ${target.id}`);
           } else {
             console.error(`[WebPush] Push execution failed for target ID: ${target.id}`, error);
           }
@@ -425,7 +426,7 @@ app.use("/uploads", express.static(uploadDir));
       res.json({ success: true, count: successfulCount, totalMatched: matchingTargets.length });
     } catch (err: any) {
       console.error("[Server] Broadcast WebPush system dispatch failed:", err);
-      res.status(500).json({ error: err.message || "Failed to trigger PWA background alerts." });
+      res.json({ success: false, error: err.message || "Failed to trigger PWA background alerts due to server issue." });
     }
   });
 
