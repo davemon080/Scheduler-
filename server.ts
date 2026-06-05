@@ -384,6 +384,10 @@ app.use("/uploads", express.static(uploadDir));
         }
 
         if (targetGroup === "department" && targetValue) {
+          // If the registered device has an explicit departmentId matching the targetValue, allow immediately
+          if (target.departmentId && String(target.departmentId) === String(targetValue)) {
+            return true;
+          }
           const dept = departments.find(d => d.id === targetValue);
           if (!dept || !dept.prefix) return false;
           const userNorm = String(target.matricNumber || "").toLowerCase().replace(/[\/\s\-_*]/g, "");

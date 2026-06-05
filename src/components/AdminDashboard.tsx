@@ -94,6 +94,8 @@ export default function AdminDashboard({
   const [newMatric, setNewMatric] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [newName, setNewName] = useState('');
+  const [newUserLevel, setNewUserLevel] = useState('100l');
+  const [newUserDeptId, setNewUserDeptId] = useState('dept-ps-ich');
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
 
@@ -102,6 +104,9 @@ export default function AdminDashboard({
   const [editName, setEditName] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editMatric, setEditMatric] = useState('');
+  const [editUserLevel, setEditUserLevel] = useState('100l');
+  const [editUserDeptId, setEditUserDeptId] = useState('dept-ps-ich');
+  const [selectedLevelFilter, setSelectedLevelFilter] = useState('all');
   const [editFormError, setEditFormError] = useState('');
   const [isEditSaving, setIsEditSaving] = useState(false);
 
@@ -845,7 +850,9 @@ export default function AdminDashboard({
         password: '123456',
         createdAt: new Date().toISOString(),
         isAdmin: false,
-        activeSessionId: ''
+        activeSessionId: '',
+        level: newUserLevel,
+        departmentId: newUserDeptId
       };
 
       // 1. Save online to Firestore
@@ -867,6 +874,8 @@ export default function AdminDashboard({
       setNewName('');
       setNewEmail('');
       setNewMatric('');
+      setNewUserLevel('100l');
+      setNewUserDeptId('dept-ps-ich');
 
       setActionFeedback({
         type: 'success',
@@ -918,6 +927,8 @@ export default function AdminDashboard({
         name: newNameClean,
         email: newEmailClean,
         matricNumber: newMatricClean,
+        level: editUserLevel,
+        departmentId: editUserDeptId
       };
 
       if (db) {
@@ -932,6 +943,8 @@ export default function AdminDashboard({
           await setDoc(doc(db, 'users', getSafeDocId(oldMatric)), {
             name: newNameClean,
             email: newEmailClean,
+            level: editUserLevel,
+            departmentId: editUserDeptId
           }, { merge: true });
         }
       }
@@ -1255,6 +1268,7 @@ export default function AdminDashboard({
 
   // Match user to department ID dynamically
   const getUserDepartmentId = (user: any) => {
+    if (user.departmentId) return user.departmentId;
     if (!user.matricNumber) return 'unassigned';
     const userNorm = String(user.matricNumber).toLowerCase().replace(/[\/\s\-_*]/g, "");
     const matched = departments.find(d => {
@@ -1274,6 +1288,14 @@ export default function AdminDashboard({
     );
 
     if (!matchesSearch) return false;
+
+    // Filter by academic level
+    if (selectedLevelFilter !== 'all') {
+      const userLevel = (u.level || '100l').toLowerCase();
+      if (userLevel !== selectedLevelFilter.toLowerCase()) {
+        return false;
+      }
+    }
 
     if (selectedRegisterId === 'all') return true;
     return getUserDepartmentId(u) === selectedRegisterId;
@@ -1604,6 +1626,48 @@ export default function AdminDashboard({
                 })()}
               </div>
 
+              {/* Academic Level Filters selector */}
+              <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-950/20 border border-slate-950 rounded-2xl">
+                <span className="text-[10px] uppercase font-mono tracking-wider text-slate-500 px-2 font-bold select-none">Level:</span>
+                {[
+                  { id: 'all', label: 'All Levels' },
+                  { id: '100l', label: '100L' },
+                  { id: '200l', label: '200L' },
+                  { id: '300l', label: '300L' },
+                  { id: '400l', label: '400L' },
+                  { id: '500l', label: '500L' }
+                ].map((levelObj) => {
+                  const isSelected = selectedLevelFilter === levelObj.id;
+                  const matchingCount = users.filter((u) => {
+                    const matchesDept = selectedRegisterId === 'all' || getUserDepartmentId(u) === selectedRegisterId;
+                    if (!matchesDept) return false;
+                    if (levelObj.id === 'all') return true;
+                    return (u.level || '100l').toLowerCase() === levelObj.id;
+                  }).length;
+
+                  return (
+                    <button
+                      key={levelObj.id}
+                      onClick={() => setSelectedLevelFilter(levelObj.id)}
+                      className={`px-3 py-1 rounded-xl text-[10px] font-mono font-bold uppercase transition-all duration-250 cursor-pointer outline-none ${
+                        isSelected
+                          ? 'bg-gradient-to-r from-indigo-500/20 to-indigo-600/15 border border-indigo-500/30 text-indigo-350 shadow-md shadow-indigo-500/5'
+                          : 'border border-transparent text-slate-500 hover:text-indigo-400 hover:bg-slate-900/30'
+                      }`}
+                    >
+                      <span>{levelObj.label}</span>
+                      <span className={`text-[8.5px] font-mono ml-2 px-1 py-0.1 rounded ${
+                        isSelected 
+                          ? 'bg-indigo-500/20 text-indigo-300' 
+                          : 'bg-slate-900/60 text-slate-600'
+                      }`}>
+                        {matchingCount}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
               {/* User stream records view */}
               <div className="space-y-3">
                 {isLoading && users.length === 0 ? (
@@ -1654,6 +1718,8 @@ export default function AdminDashboard({
                                     setEditName(user.name || user.displayName || '');
                                     setEditEmail(user.email || '');
                                     setEditMatric(user.matricNumber || user.matric || '');
+                                    setEditUserLevel(user.level || '100l');
+                                    setEditUserDeptId(user.departmentId || getUserDepartmentId(user) || 'dept-ps-ich');
                                     setEditFormError('');
                                   }}
                                   className="p-1 hover:bg-indigo-500/10 hover:text-indigo-400 text-slate-500 border border-transparent hover:border-indigo-500/20 rounded cursor-pointer transition-all"
@@ -1679,6 +1745,9 @@ export default function AdminDashboard({
                               <div className="flex items-center gap-1.5 mt-1">
                                 <span className={`text-[8px] font-mono font-bold uppercase border px-1.5 py-0.5 rounded-md ${status.badgeClass}`} title={status.expiryText}>
                                   {status.label}
+                                </span>
+                                <span className="text-[8px] font-mono font-bold uppercase border bg-indigo-500/10 text-indigo-300 border-indigo-500/20 px-1.5 py-0.5 rounded-md">
+                                  {user.level ? user.level.toUpperCase() : '100L'}
                                 </span>
                                 <span className="text-[8.5px] text-slate-500 font-mono" title="Subscription Info">
                                   {status.expiryText}
@@ -1750,13 +1819,15 @@ export default function AdminDashboard({
 
                             {/* Edit Profile Action Button */}
                             <button
-                              onClick={() => {
-                                setEditingUser(user);
-                                setEditName(user.name || user.displayName || '');
-                                setEditEmail(user.email || '');
-                                setEditMatric(user.matricNumber || user.matric || '');
-                                setEditFormError('');
-                              }}
+                                onClick={() => {
+                                  setEditingUser(user);
+                                  setEditName(user.name || user.displayName || '');
+                                  setEditEmail(user.email || '');
+                                  setEditMatric(user.matricNumber || user.matric || '');
+                                  setEditUserLevel(user.level || '100l');
+                                  setEditUserDeptId(user.departmentId || getUserDepartmentId(user) || 'dept-ps-ich');
+                                  setEditFormError('');
+                                }}
                               className="p-1.5 px-3 bg-indigo-500/10 hover:bg-indigo-600 border border-indigo-500/25 hover:border-indigo-500 text-indigo-400 hover:text-white rounded-lg text-[10px] font-mono font-bold uppercase transition-all flex items-center gap-1.5 cursor-pointer"
                               title="Edit user details: name, email, and matric number"
                             >
@@ -2647,6 +2718,44 @@ export default function AdminDashboard({
                   </div>
                 </div>
 
+                <div className="space-y-1">
+                  <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 block">Student Academic Level</label>
+                  <select
+                    value={newUserLevel}
+                    onChange={(e) => {
+                      setNewUserLevel(e.target.value);
+                      setFormError('');
+                      setFormSuccess('');
+                    }}
+                    className="w-full bg-slate-950/80 border border-slate-850 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-rose-500 font-sans cursor-pointer"
+                  >
+                    <option value="100l">100L</option>
+                    <option value="200l">200L</option>
+                    <option value="300l">300L</option>
+                    <option value="400l">400L</option>
+                    <option value="500l">500L</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 block">Student Department</label>
+                  <select
+                    value={newUserDeptId}
+                    onChange={(e) => {
+                      setNewUserDeptId(e.target.value);
+                      setFormError('');
+                      setFormSuccess('');
+                    }}
+                    className="w-full bg-slate-950/80 border border-slate-850 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-rose-500 font-sans cursor-pointer"
+                  >
+                    {departments.map((dept: any) => (
+                      <option key={dept.id} value={dept.id}>
+                        {dept.name} ({dept.prefix || 'N/A'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 {/* Auto Provision Info Alert */}
                 <div className="p-3 bg-slate-950 rounded-xl border border-slate-900 flex gap-2">
                   <ShieldCheck className="w-4 h-4 text-rose-455 shrink-0 mt-0.5" />
@@ -2767,6 +2876,42 @@ export default function AdminDashboard({
                       className="w-full bg-slate-950/80 border border-slate-850 rounded-xl pl-9 pr-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 placeholder:text-slate-655 font-mono"
                     />
                   </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 block">Student Academic Level</label>
+                  <select
+                    value={editUserLevel}
+                    onChange={(e) => {
+                      setEditUserLevel(e.target.value);
+                      setEditFormError('');
+                    }}
+                    className="w-full bg-slate-950/80 border border-slate-850 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-sans cursor-pointer"
+                  >
+                    <option value="100l">100L</option>
+                    <option value="200l">200L</option>
+                    <option value="300l">300L</option>
+                    <option value="400l">400L</option>
+                    <option value="500l">500L</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 block">Student Department</label>
+                  <select
+                    value={editUserDeptId}
+                    onChange={(e) => {
+                      setEditUserDeptId(e.target.value);
+                      setEditFormError('');
+                    }}
+                    className="w-full bg-slate-950/80 border border-slate-850 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-sans cursor-pointer"
+                  >
+                    {departments.map((dept: any) => (
+                      <option key={dept.id} value={dept.id}>
+                        {dept.name} ({dept.prefix || 'N/A'})
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="p-3 bg-slate-950 rounded-xl border border-slate-900 flex gap-2">

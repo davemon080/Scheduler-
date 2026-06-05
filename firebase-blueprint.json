@@ -24,6 +24,10 @@
         "departmentId": {
           "type": "string",
           "description": "Identified matched department code string"
+        },
+        "level": {
+          "type": "string",
+          "description": "Student academic group level"
         }
       },
       "required": ["email", "matricNumber", "name", "password"]

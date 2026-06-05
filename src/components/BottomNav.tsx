@@ -67,7 +67,7 @@ export default function BottomNav({
               onClick={() => onChangeTab(item.id)}
               className="relative flex flex-col items-center justify-center py-1 px-2 transition-all duration-300 rounded-xl outline-none"
             >
-              {item.id === 'deadlines' && deadlinesBadge > 0 && !isActive && (
+              {item.id === 'deadlines' && deadlinesBadge > 0 && (
                 <span className="absolute -top-1 right-2 bg-rose-500 text-white font-sans text-[9px] font-bold h-4 min-w-[16px] px-1 rounded-full flex items-center justify-center animate-pulse z-10 shadow-[0_0_8px_rgba(244,63,94,0.6)]">
                   {deadlinesBadge}
                 </span>

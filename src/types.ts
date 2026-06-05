@@ -24,6 +24,8 @@ export interface UserRecord {
   avatarUrl?: string;
   password?: string;
   lastActiveAt?: string;
+  level?: string;
+  departmentId?: string;
 }
 
 // User mapping for backward compatibility

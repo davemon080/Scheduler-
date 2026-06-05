@@ -683,16 +683,7 @@ export default function ModulesView({
                         <Eye className="w-3.5 h-3.5" />
                       </a>
 
-                      {/* DOWNLOAD BUTTON */}
-                      <a
-                        href={mod.pdfUrl}
-                        download={`${mod.title}.pdf`}
-                        className="p-1.5 bg-amber-500/10 hover:bg-amber-505/25 border border-amber-500/20 rounded-lg text-amber-400 transition-all flex items-center justify-center cursor-pointer pointer-events-auto"
-                        title="Download Syllabus PDF"
-                        id={`download-pdf-btn-${mod.id}`}
-                      >
-                        <Download className="w-3.5 h-3.5" />
-                      </a>
+
                     </div>
                   </div>
                 ))}

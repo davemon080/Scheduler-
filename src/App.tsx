@@ -406,6 +406,17 @@ export default function App() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
 
+  // In-App manual messaging overlays state
+  const [dismissedMessages, setDismissedMessages] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem('ich100l_dismissed_in_app');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [inAppMessages, setInAppMessages] = useState<any[]>([]);
+
   const [notifications, setNotifications] = useState<NotificationItem[]>(() => {
     try {
       const stored = localStorage.getItem('ich100l_notifications');
@@ -535,6 +546,87 @@ export default function App() {
       return notif.departmentId === matchedDepartment.id;
     });
   }, [notifications, matchedDepartment]);
+
+  // Synchronize notifications with existing database records on load to make sure they're never empty
+  useEffect(() => {
+    if (!currentUser || !matchedDepartment) return;
+    
+    setNotifications((prev) => {
+      let changed = false;
+      const updated = [...prev];
+      
+      // Sync activities
+      activities.forEach((act) => {
+        const deptId = act.departmentId || 'dept-ps-ich';
+        if (deptId === matchedDepartment.id) {
+          const actNotifId = `notif-act-db-${act.id}`;
+          if (!updated.some(n => n.id === actNotifId)) {
+            updated.push({
+              id: actNotifId,
+              type: 'schedule',
+              title: 'Class Published 📅',
+              body: `${act.courseCode || 'ICH100L'}: "${act.title}" is scheduled on ${act.day} in ${act.location || 'Classroom'}.`,
+              time: 'Active Schedule',
+              isRead: true,
+              priority: 'info',
+              referenceTab: 'schedule',
+              departmentId: deptId
+            });
+            changed = true;
+          }
+        }
+      });
+
+      // Sync deadlines
+      deadlines.forEach((dl) => {
+        const deptId = dl.departmentId || 'dept-ps-ich';
+        if (deptId === matchedDepartment.id) {
+          const dlNotifId = `notif-dl-db-${dl.id}`;
+          if (!updated.some(n => n.id === dlNotifId)) {
+            updated.push({
+              id: dlNotifId,
+              type: 'deadline',
+              title: `Assignment Published: ${dl.courseCode} 📣`,
+              body: `Deadline poster: "${dl.title}". Due date: ${dl.dueDate}.`,
+              time: 'Active Assignment',
+              isRead: true,
+              priority: 'high',
+              referenceTab: 'deadlines',
+              departmentId: deptId
+            });
+            changed = true;
+          }
+        }
+      });
+
+      // Sync announcements
+      announcements.forEach((ann) => {
+        const deptId = ann.departmentId || 'dept-ps-ich';
+        if (deptId === matchedDepartment.id) {
+          const annNotifId = `notif-ann-db-${ann.id}`;
+          if (!updated.some(n => n.id === annNotifId)) {
+            updated.push({
+              id: annNotifId,
+              type: 'announcement',
+              title: `Broadcast: ${ann.title} 🚨`,
+              body: ann.content.substring(0, 100) + (ann.content.length > 100 ? '...' : ''),
+              time: 'Active Broadcast',
+              isRead: true,
+              priority: (ann.priority as any) || 'medium',
+              referenceTab: 'announcements',
+              departmentId: deptId
+            });
+            changed = true;
+          }
+        }
+      });
+      
+      if (changed) {
+        return updated;
+      }
+      return prev;
+    });
+  }, [currentUser, matchedDepartment, activities, deadlines, announcements]);
 
   // Logo branding status
   const [logoUrl, setLogoUrl] = useState<string>('');
@@ -1067,8 +1159,8 @@ export default function App() {
             const actDeptId = data.departmentId || 'dept-ps-ich';
             if (!knownIds.has(docId)) {
               knownIds.add(docId);
-              // Only trigger visual notifications inside the app if the activity is recently created (and matches the user's department)
-              if (matchedDepartment?.id === actDeptId && data.createdBy !== currentUser.matricNumber && isRecentlyCreatedCustomId(docId)) {
+              // Only trigger visual notifications inside the app if the activity matches the user's department (and was added in real-time)
+              if (matchedDepartment?.id === actDeptId && data.createdBy !== currentUser.matricNumber) {
                 const notif: NotificationItem = {
                   id: `notif-act-${Date.now()}-${change.doc.id}`,
                   type: 'schedule',
@@ -1077,7 +1169,8 @@ export default function App() {
                   time: 'Just now',
                   isRead: false,
                   priority: 'info',
-                  referenceTab: 'schedule'
+                  referenceTab: 'schedule',
+                  departmentId: actDeptId
                 };
                 setNotifications((prev) => {
                   if (prev.some(p => p.id === notif.id)) return prev;
@@ -1098,7 +1191,8 @@ export default function App() {
                 time: 'Just now',
                 isRead: false,
                 priority: 'high',
-                referenceTab: 'schedule'
+                referenceTab: 'schedule',
+                departmentId: actDeptId
               };
               setNotifications((prev) => [notif, ...prev]);
             }
@@ -1136,8 +1230,8 @@ export default function App() {
             const dlDeptId = data.departmentId || 'dept-ps-ich';
             if (!knownIds.has(docId)) {
               knownIds.add(docId);
-              // Only trigger visual notifications inside the app if the deadline is recently created (and matches the user's department)
-              if (matchedDepartment?.id === dlDeptId && data.createdBy !== currentUser.matricNumber && isRecentlyCreatedCustomId(docId)) {
+              // Only trigger visual notifications inside the app if the deadline matches the user's department (and was added in real-time)
+              if (matchedDepartment?.id === dlDeptId && data.createdBy !== currentUser.matricNumber) {
                 const notif: NotificationItem = {
                   id: `notif-dl-${Date.now()}-${change.doc.id}`,
                   type: 'deadline',
@@ -1146,7 +1240,8 @@ export default function App() {
                   time: 'Just now',
                   isRead: false,
                   priority: 'high',
-                  referenceTab: 'deadlines'
+                  referenceTab: 'deadlines',
+                  departmentId: dlDeptId
                 };
                 setNotifications((prev) => {
                   if (prev.some(p => p.id === notif.id)) return prev;
@@ -1189,8 +1284,8 @@ export default function App() {
             const isMe = data.author?.includes(currentUser.name);
             if (!knownIds.has(docId)) {
               knownIds.add(docId);
-              // Only trigger visual notifications inside the app if the announcement is recently created (and matches the user's department)
-              if (matchedDepartment?.id === annDeptId && !isMe && isRecentlyCreatedCustomId(docId)) {
+              // Only trigger visual notifications inside the app if the announcement matches the user's department (and was added in real-time)
+              if (matchedDepartment?.id === annDeptId && !isMe) {
                 const notif: NotificationItem = {
                   id: `notif-ann-${Date.now()}-${change.doc.id}`,
                   type: 'announcement',
@@ -1199,7 +1294,8 @@ export default function App() {
                   time: 'Just now',
                   isRead: false,
                   priority: (data.priority as any) || 'medium',
-                  referenceTab: 'announcements'
+                  referenceTab: 'announcements',
+                  departmentId: annDeptId
                 };
                 setNotifications((prev) => {
                   if (prev.some(p => p.id === notif.id)) return prev;
@@ -1284,6 +1380,42 @@ export default function App() {
     return () => unsubscribe();
   }, [currentUser]);
 
+  // Listen to Firestore real-time updates for manual inapp messages
+  useEffect(() => {
+    if (!currentUser) return;
+    const unsubscribe = onSnapshot(collection(db, 'in_app_messages'), (snapshot) => {
+      const msgs: any[] = [];
+      snapshot.forEach((doc) => {
+        msgs.push({ ...doc.data(), id: doc.id });
+      });
+      // Sort by createdAt descending
+      msgs.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+      setInAppMessages(msgs);
+    }, (error) => {
+      console.warn('Firestore listening to in_app_messages failed:', error);
+    });
+    return () => unsubscribe();
+  }, [currentUser]);
+
+  // Derived active in-app message
+  const activeInApp = useMemo(() => {
+    if (!currentUser) return null;
+    return inAppMessages.find((msg) => {
+      if (!msg.active) return false;
+      const deptMatch = msg.targetDepartmentId === 'all' || msg.targetDepartmentId === matchedDepartment?.id;
+      if (!deptMatch) return false;
+      return !dismissedMessages.includes(msg.id);
+    });
+  }, [inAppMessages, currentUser, matchedDepartment, dismissedMessages]);
+
+  const handleDismissInApp = (id: string) => {
+    setDismissedMessages((prev) => {
+      const updated = [...prev, id];
+      localStorage.setItem('ich100l_dismissed_in_app', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
   // Periodic background check for live classes, ended classes, and deadline reminders with zero redundant notifications
   useEffect(() => {
     if (!currentUser) return;
@@ -1326,7 +1458,8 @@ export default function App() {
               time: 'Just now',
               isRead: false,
               priority: 'high',
-              referenceTab: 'schedule'
+              referenceTab: 'schedule',
+              departmentId: matchedDepartment?.id
             };
             setNotifications(prev => [notif, ...prev]);
           }
@@ -1344,7 +1477,8 @@ export default function App() {
               time: 'Just now',
               isRead: false,
               priority: 'info',
-              referenceTab: 'schedule'
+              referenceTab: 'schedule',
+              departmentId: matchedDepartment?.id
             };
             setNotifications(prev => [notif, ...prev]);
           }
@@ -1374,7 +1508,8 @@ export default function App() {
               time: 'Just now',
               isRead: false,
               priority: 'high',
-              referenceTab: 'deadlines'
+              referenceTab: 'deadlines',
+              departmentId: matchedDepartment?.id
             };
             setNotifications(prev => [notif, ...prev]);
           }
@@ -1580,6 +1715,14 @@ export default function App() {
 
   const isCourseRep = currentUser?.isCourseRep === true;
 
+  const visiblePendingDeadlinesCount = useMemo(() => {
+    if (!currentUser) return 0;
+    return visibleDeadlines.filter((dl) => {
+      const isCompleted = dl.completedBy ? !!dl.completedBy[currentUser.matricNumber] : dl.isCompleted;
+      return !isCompleted;
+    }).length;
+  }, [visibleDeadlines, currentUser]);
+
   // Sign out handler
   const handleLogout = () => {
     setCurrentUser(null);
@@ -1646,7 +1789,8 @@ export default function App() {
       time: 'Just now',
       isRead: false,
       priority: 'info',
-      referenceTab: 'schedule'
+      referenceTab: 'schedule',
+      departmentId: act.departmentId || matchedDepartment?.id
     };
     setNotifications((prev) => [notif, ...prev]);
 
@@ -1726,7 +1870,8 @@ export default function App() {
       time: 'Just now',
       isRead: false,
       priority: 'high',
-      referenceTab: 'deadlines'
+      referenceTab: 'deadlines',
+      departmentId: dl.departmentId || matchedDepartment?.id
     };
     setNotifications((prev) => [notif, ...prev]);
 
@@ -1772,7 +1917,8 @@ export default function App() {
       time: 'Just now',
       isRead: false,
       priority: ann.priority,
-      referenceTab: 'announcements'
+      referenceTab: 'announcements',
+      departmentId: ann.departmentId || matchedDepartment?.id
     };
     setNotifications((prev) => [notif, ...prev]);
 
@@ -1921,7 +2067,9 @@ export default function App() {
               email: currentUser?.email || '',
               matricNumber: currentUser?.matricNumber || '',
               name: currentUser?.name || 'Student',
-              createdAt: currentUser?.createdAt
+              createdAt: currentUser?.createdAt,
+              isCourseRep: isCourseRep,
+              isAdmin: currentUser?.isAdmin === true
             }}
             onLogout={handleLogout}
             onResetData={handleResetData}
@@ -1961,6 +2109,7 @@ export default function App() {
             deferredPrompt={deferredPrompt}
             onClearDeferredPrompt={() => setDeferredPrompt(null)}
             appTitle={appTitle}
+            departments={departments}
           />
         );
       case 'notifications' as any:
@@ -2122,6 +2271,113 @@ export default function App() {
               </button>
             </div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Manual In-App Messages System Overlay */}
+      <AnimatePresence>
+        {activeInApp && (
+          activeInApp.style === 'modal' ? (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100001] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm"
+            >
+              <motion.div
+                initial={{ scale: 0.95, y: 15 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.95, y: 15 }}
+                className="relative w-full max-w-sm overflow-hidden bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl text-left"
+              >
+                {/* Hot vibrant accent gradient bar */}
+                <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-teal-500 via-indigo-500 to-purple-500" />
+                
+                <div className="flex items-center gap-2 mb-3">
+                  <Sparkles className="w-4 h-4 text-indigo-400 shrink-0" />
+                  <span className="text-[9px] font-mono font-bold uppercase tracking-widest text-indigo-400 leading-none">Important Notification</span>
+                </div>
+
+                <h3 className="text-base font-display font-black text-slate-100 mb-2 leading-tight">
+                  {activeInApp.title}
+                </h3>
+                
+                <div className="text-xs text-slate-300 font-sans leading-relaxed mb-6 whitespace-pre-wrap">
+                  {activeInApp.body}
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  {activeInApp.btnText && activeInApp.btnLink && (
+                    <button
+                      onClick={() => {
+                        handleDismissInApp(activeInApp.id);
+                        if (activeInApp.btnLink.startsWith('http')) {
+                          window.open(activeInApp.btnLink, '_blank');
+                        } else {
+                          setActiveTab(activeInApp.btnLink);
+                        }
+                      }}
+                      className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-white font-bold font-sans text-xs uppercase tracking-wider transition-all cursor-pointer text-center outline-none"
+                    >
+                      {activeInApp.btnText}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleDismissInApp(activeInApp.id)}
+                    className="w-full py-2.5 bg-slate-950 hover:bg-slate-850 border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-slate-200 rounded-xl text-xs font-semibold tracking-wide transition-all cursor-pointer text-center outline-none"
+                  >
+                    Dismiss Message
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          ) : (
+            <motion.div
+              initial={{ opacity: 0, y: -50, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -30, scale: 0.95 }}
+              transition={{ type: 'spring', damping: 18 }}
+              className="fixed top-24 left-4 right-4 max-w-sm mx-auto z-[99999] pointer-events-auto"
+            >
+              <div className="relative overflow-hidden bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-2xl flex gap-3 text-left">
+                {/* Visual left active colorful vertical pin indicator */}
+                <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500" />
+                
+                <div className="flex-1 min-w-0 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-indigo-400 shrink-0">
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span className="text-[8px] font-mono font-bold uppercase tracking-wider">Manual Alert</span>
+                    </div>
+                    <button
+                      onClick={() => handleDismissInApp(activeInApp.id)}
+                      className="text-slate-500 hover:text-slate-350 cursor-pointer p-0"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <h4 className="text-xs font-bold text-slate-100 leading-tight">{activeInApp.title}</h4>
+                  <p className="text-[11px] text-slate-350 leading-relaxed font-sans">{activeInApp.body}</p>
+                  {activeInApp.btnText && activeInApp.btnLink && (
+                    <button
+                      onClick={() => {
+                        handleDismissInApp(activeInApp.id);
+                        if (activeInApp.btnLink.startsWith('http')) {
+                          window.open(activeInApp.btnLink, '_blank');
+                        } else {
+                          setActiveTab(activeInApp.btnLink);
+                        }
+                      }}
+                      className="mt-2 text-[9px] text-indigo-400 hover:text-indigo-350 font-bold uppercase tracking-wider cursor-pointer flex items-center gap-0.5"
+                    >
+                      <span>{activeInApp.btnText}</span>
+                      <span className="text-xs font-semibold leading-none">&rarr;</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          )
         )}
       </AnimatePresence>
 
@@ -2448,7 +2704,7 @@ export default function App() {
         currentTab={activeTab}
         onChangeTab={setActiveTab}
         isCourseRep={isCourseRep}
-        deadlinesBadge={visibleNotifications.filter(n => n.type === 'deadline' && !n.isRead).length}
+        deadlinesBadge={visiblePendingDeadlinesCount}
         broadcastsBadge={visibleNotifications.filter(n => n.type === 'announcement' && !n.isRead).length}
       />
     </div>
