@@ -295,6 +295,7 @@ export default function Scheduler({
             activeDayActivities.map((activity, index) => {
               const isLive = checkIfLive(activity);
               const isOnline = activity.deliveryType === 'online';
+              const isOther = activity.category?.toLowerCase() === 'other' || activity.category?.toLowerCase() === 'others';
 
               return (
                 <motion.div
@@ -336,12 +337,12 @@ export default function Scheduler({
                           {isOnline ? (
                             <span className="text-[10px] font-sans font-semibold px-2 py-0.5 rounded-full border border-emerald-500/30 text-emerald-400 bg-emerald-500/10 flex items-center gap-1 shrink-0">
                               <Globe className="w-3 h-3 text-emerald-400" />
-                              <span>ONLINE CLASS</span>
+                              <span>{isOther ? 'ONLINE MEETING' : 'ONLINE CLASS'}</span>
                             </span>
                           ) : (
                             <span className="text-[10px] font-sans font-medium px-2 py-0.5 rounded-full border border-slate-850 text-slate-400 bg-slate-950 flex items-center gap-1 shrink-0">
                               <MapPin className="w-3 h-3 text-slate-500" />
-                              <span>PHYSICAL CLASS</span>
+                              <span>{isOther ? 'PHYSICAL MEETING' : 'PHYSICAL CLASS'}</span>
                             </span>
                           )}
 
@@ -397,7 +398,7 @@ export default function Scheduler({
                               }`}
                             >
                               <ExternalLink className="w-3.5 h-3.5" />
-                              <span>Join Class</span>
+                              <span>{isOther ? 'Join Meeting' : 'Join Class'}</span>
                             </a>
                           </div>
                         )}
