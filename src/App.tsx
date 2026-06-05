@@ -16,7 +16,7 @@ import {
 } from './data/defaultData';
 
 import { db, cleanData, getSafeDocId } from './lib/firebase';
-import { collection, onSnapshot, doc, setDoc, deleteDoc, getDocs, getDoc, collectionGroup, query } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, deleteDoc, getDocs, getDoc, collectionGroup, query, where } from 'firebase/firestore';
 
 // Custom subcomponents
 import GlassCard from './components/GlassCard';
@@ -904,13 +904,32 @@ export default function App() {
       }
 
       // Otherwise, check their subscription document in real time!
-      const subRef = doc(db, 'subscriptions', getSafeDocId(currentUser.matricNumber));
+      // Generate multiple representations of the student's matric number to handle any casing, slash, or dash formatting variations
+      const variations = [
+        currentUser.matricNumber,
+        currentUser.matricNumber.toLowerCase(),
+        currentUser.matricNumber.toUpperCase(),
+        currentUser.matricNumber.replace(/\//g, '-'),
+        currentUser.matricNumber.replace(/\//g, '-').toLowerCase(),
+        currentUser.matricNumber.replace(/\//g, '-').toUpperCase(),
+        currentUser.matricNumber.replace(/-/g, '/'),
+        currentUser.matricNumber.replace(/-/g, '/').toLowerCase(),
+        currentUser.matricNumber.replace(/-/g, '/').toUpperCase()
+      ];
+      const uniqueVariations = Array.from(new Set(variations.map(v => v.trim()).filter(Boolean))).slice(0, 10);
+
+      const subQuery = query(
+        collection(db, 'subscriptions'),
+        where('matricNumber', 'in', uniqueVariations)
+      );
       
       // Clean up previous subscription listener if it was running
       unsubscribeSub();
 
-      unsubscribeSub = onSnapshot(subRef, (docSnap) => {
-        if (docSnap.exists()) {
+      unsubscribeSub = onSnapshot(subQuery, (querySnap) => {
+        if (!querySnap.empty) {
+          // Take the matching subscription document
+          const docSnap = querySnap.docs[0];
           const data = docSnap.data();
           
           // Must have paid specifically after block started!

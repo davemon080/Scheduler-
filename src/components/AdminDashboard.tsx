@@ -374,7 +374,13 @@ export default function AdminDashboard({
   };
 
   const getUserStatus = (user: any) => {
-    const sub = subscriptions[getSafeDocId(user.matricNumber)];
+    // Highly resilient case-insensitive and format-insensitive lookup
+    const cleanUserMatric = (user.matricNumber || '').trim().toLowerCase().replace(/[\/-]/g, '');
+    const matchedSubKey = Object.keys(subscriptions).find(key => {
+      const cleanKey = key.trim().toLowerCase().replace(/[\/-]/g, '');
+      return cleanKey === cleanUserMatric;
+    });
+    const sub = matchedSubKey ? subscriptions[matchedSubKey] : null;
     const now = new Date().toISOString();
     
     // Check if subscription exists and is active
