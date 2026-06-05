@@ -107,8 +107,14 @@ export default function AdminDashboard({
   const [editUserLevel, setEditUserLevel] = useState('100l');
   const [editUserDeptId, setEditUserDeptId] = useState('dept-ps-ich');
   const [selectedLevelFilter, setSelectedLevelFilter] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
   const [editFormError, setEditFormError] = useState('');
   const [isEditSaving, setIsEditSaving] = useState(false);
+
+  // Reset pagination to first page whenever filtering conditions are changed
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedRegisterId, selectedLevelFilter]);
 
   // Action feedback states
   const [actionFeedback, setActionFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -1382,6 +1388,14 @@ export default function AdminDashboard({
     return getUserDepartmentId(u) === selectedRegisterId;
   });
 
+  // Paginated student registry slice
+  const usersPerPage = 50;
+  const totalPages = Math.ceil(filteredUsers.length / usersPerPage) || 1;
+  const paginatedUsers = filteredUsers.slice(
+    (currentPage - 1) * usersPerPage,
+    currentPage * usersPerPage
+  );
+
   // Calculate totals for KPI widgets
   const totalUserCount = users.length;
   const courseRepCount = users.filter(u => u.isCourseRep).length;
@@ -1765,7 +1779,7 @@ export default function AdminDashboard({
                     </p>
                   </div>
                 ) : (
-                  filteredUsers.map((user) => {
+                  paginatedUsers.map((user) => {
                     const isCurrentAdmin = user.matricNumber === '2026/ps/ich/0034';
                     const isUserRep = user.isCourseRep;
                     const status = getUserStatus(user);
@@ -1941,6 +1955,61 @@ export default function AdminDashboard({
                       </div>
                     );
                   })
+                )}
+
+                {/* Pagination Controls */}
+                {filteredUsers.length > usersPerPage && (
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-slate-900/40 bg-slate-950/20 px-4 py-3 rounded-xl">
+                    <span className="text-[11px] font-sans text-slate-400">
+                      Showing <span className="font-bold text-slate-200">{Math.min(filteredUsers.length, (currentPage - 1) * usersPerPage + 1)}</span> to{' '}
+                      <span className="font-bold text-slate-200">{Math.min(filteredUsers.length, currentPage * usersPerPage)}</span> of{' '}
+                      <span className="font-bold text-slate-200">{filteredUsers.length}</span> students
+                    </span>
+                    
+                    <div className="flex items-center gap-1.5 font-mono">
+                      <button
+                        type="button"
+                        onClick={() => setCurrentPage(1)}
+                        disabled={currentPage === 1}
+                        className="p-1.5 px-2.5 text-[10px] font-bold rounded-lg bg-slate-950 border border-slate-850 hover:bg-slate-900 text-slate-450 hover:text-slate-200 hover:border-slate-750 disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer outline-none"
+                        title="First Page"
+                      >
+                        &lt;&lt;
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                        disabled={currentPage === 1}
+                        className="p-1.5 px-3 text-[10px] font-bold rounded-lg bg-slate-950 border border-slate-850 hover:bg-slate-900 text-slate-450 hover:text-slate-200 hover:border-slate-750 disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer flex items-center gap-1 outline-none"
+                        title="Previous Page"
+                      >
+                        &lt; Prev
+                      </button>
+                      
+                      <span className="text-[10px] font-bold text-slate-350 px-3.5 py-1.5 bg-slate-950/80 rounded-xl border border-slate-900/60 shadow-sm">
+                        Page <span className="text-indigo-400 font-bold">{currentPage}</span> of <span className="font-semibold text-slate-400">{totalPages}</span>
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                        disabled={currentPage === totalPages}
+                        className="p-1.5 px-3 text-[10px] font-bold rounded-lg bg-slate-950 border border-slate-850 hover:bg-slate-900 text-slate-450 hover:text-slate-200 hover:border-slate-750 disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer flex items-center gap-1 outline-none"
+                        title="Next Page"
+                      >
+                        Next &gt;
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCurrentPage(totalPages)}
+                        disabled={currentPage === totalPages}
+                        className="p-1.5 px-2.5 text-[10px] font-bold rounded-lg bg-slate-950 border border-slate-850 hover:bg-slate-900 text-slate-450 hover:text-slate-200 hover:border-slate-750 disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer outline-none"
+                        title="Last Page"
+                      >
+                        &gt;&gt;
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
