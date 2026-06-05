@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { ArrowLeft, Check, AlertTriangle, Clock, MapPin, Globe, Sparkles, PlusCircle, Camera, Upload, Trash2, Loader2, Calendar, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Check, AlertTriangle, Clock, MapPin, Globe, Sparkles, PlusCircle, Camera, Upload, Trash2, Loader2, Calendar, RefreshCw, ExternalLink } from 'lucide-react';
 import { DayOfWeek, ActivityCategory, Activity, Deadline, Announcement } from '../types';
 
 const compressImage = (file: File): Promise<File> => {
@@ -158,6 +158,8 @@ export default function AddEditPage({
   const [annContent, setAnnContent] = useState('');
   const [annPriority, setAnnPriority] = useState<'high' | 'medium' | 'info'>('info');
   const [annImages, setAnnImages] = useState<string[]>([]);
+  const [annLinkUrl, setAnnLinkUrl] = useState('');
+  const [annLinkText, setAnnLinkText] = useState('Join Now');
 
   const [formError, setFormError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -323,7 +325,9 @@ export default function AddEditPage({
         priority: annPriority,
         imageUrl: annImages[0] || undefined,
         imageUrls: annImages.length > 0 ? annImages : undefined,
-        departmentId: finalDeptId
+        departmentId: finalDeptId,
+        linkUrl: annLinkUrl.trim() || undefined,
+        linkText: annLinkUrl.trim() ? (annLinkText.trim() || 'Join Now') : undefined
       } as any);
 
       setSuccessMsg('Announcement broadcast sent successfully!');
@@ -861,6 +865,43 @@ export default function AddEditPage({
                   placeholder="Enter detailed announcements. Use paragraph breaks..."
                   className="w-full px-4 py-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-slate-100 text-xs focus:outline-none focus:border-indigo-500 transition-colors font-sans resize-none"
                 />
+              </div>
+
+              {/* Broadcast target link (CTA) */}
+              <div className="p-4 rounded-2xl bg-indigo-500/5 border border-indigo-500/10 space-y-3.5">
+                <p className="text-xs font-semibold text-indigo-305 flex items-center gap-1.5 leading-none">
+                  <ExternalLink className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Call to Action Link / Backing Web URL (Optional)</span>
+                </p>
+                
+                <div>
+                  <label className="block text-[10px] font-mono font-bold uppercase tracking-wider text-slate-450 mb-1">
+                    Action Target Web URL
+                  </label>
+                  <input
+                    type="url"
+                    value={annLinkUrl}
+                    onChange={(e) => setAnnLinkUrl(e.target.value)}
+                    placeholder="e.g., https://chat.whatsapp.com/..., https://drive.google.com/..."
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-slate-100 text-xs focus:outline-none focus:border-indigo-500 transition-colors font-sans"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-mono font-bold uppercase tracking-wider text-slate-450 mb-1">
+                    Button Action Title (if link defined)
+                  </label>
+                  <input
+                    type="text"
+                    value={annLinkText}
+                    onChange={(e) => setAnnLinkText(e.target.value)}
+                    placeholder="e.g., Join Lecture Stream, Download Slide, Learn More"
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-slate-100 text-xs focus:outline-none focus:border-indigo-500 transition-colors font-sans"
+                  />
+                  <p className="text-[9px] text-slate-500 font-sans mt-1">
+                    This text will render inside your custom action button next to the content.
+                  </p>
+                </div>
               </div>
 
               {/* Announcement image attachment section */}

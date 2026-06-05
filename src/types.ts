@@ -26,6 +26,7 @@ export interface UserRecord {
   lastActiveAt?: string;
   level?: string;
   departmentId?: string;
+  seenBroadcasts?: string[];
 }
 
 // User mapping for backward compatibility
@@ -83,6 +84,8 @@ export interface Announcement {
   imageUrl?: string;
   imageUrls?: string[];
   departmentId?: string;
+  linkUrl?: string;
+  linkText?: string;
 }
 
 export interface SubscriptionRecord {

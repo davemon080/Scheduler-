@@ -28,6 +28,10 @@
         "level": {
           "type": "string",
           "description": "Student academic group level"
+        },
+        "seenBroadcasts": {
+          "type": "array",
+          "description": "List of announcement IDs marked as seen by this user"
         }
       },
       "required": ["email", "matricNumber", "name", "password"]
@@ -161,6 +165,12 @@
           "type": "string"
         },
         "departmentId": {
+          "type": "string"
+        },
+        "linkUrl": {
+          "type": "string"
+        },
+        "linkText": {
           "type": "string"
         }
       },

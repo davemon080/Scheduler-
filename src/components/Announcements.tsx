@@ -5,7 +5,7 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Megaphone, Search, ShieldAlert, Pin, Calendar, User, Trash2, Tag, Volume2, Eye, X, Image } from 'lucide-react';
+import { Megaphone, Search, ShieldAlert, Pin, Calendar, User, Trash2, Tag, Volume2, Eye, X, Image, ExternalLink } from 'lucide-react';
 import { Announcement } from '../types';
 import GlassCard from './GlassCard';
 import ImageViewer from './ImageViewer';
@@ -165,6 +165,25 @@ export default function Announcements({
                       <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-line font-sans">
                         {ann.content}
                       </p>
+
+                      {/* Call to action target link */}
+                      {ann.linkUrl && (
+                        <div className="mt-3.5 flex">
+                          <a
+                            href={ann.linkUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs rounded-xl border border-indigo-500/30 hover:border-indigo-400/50 shadow-[0_4px_12px_rgba(99,102,241,0.3)] hover:shadow-[0_4px_16px_rgba(99,102,241,0.45)] transition-all transform active:scale-95 duration-200 cursor-pointer group/btn"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5 text-indigo-200 group-hover/btn:translate-x-0.5 group-hover/btn:-translate-y-0.5 transition-transform" />
+                            <span>{ann.linkText || 'Join Now'}</span>
+                            <span className="relative flex h-1.5 w-1.5 ml-0.5">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                            </span>
+                          </a>
+                        </div>
+                      )}
 
                       {/* Attached Broadcast Preview Images */}
                       {(() => {

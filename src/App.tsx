@@ -1040,15 +1040,17 @@ export default function App() {
           const isAdminChanged = (currentUser.isAdmin || false) !== (data.isAdmin || false);
           const nameChanged = currentUser.name !== data.name;
           const emailChanged = currentUser.email !== data.email;
+          const seenBroadcastsChanged = JSON.stringify(currentUser.seenBroadcasts || []) !== JSON.stringify(data.seenBroadcasts || []);
 
-          if (isCourseRepChanged || isAdminChanged || nameChanged || emailChanged) {
-            console.log('[Session] Real-time role or profile update received from Firestore, syncing state...');
+          if (isCourseRepChanged || isAdminChanged || nameChanged || emailChanged || seenBroadcastsChanged) {
+            console.log('[Session] Real-time role, profile or seen broadcasts update received from Firestore, syncing state...');
             const updatedUser = {
               ...currentUser,
               name: data.name || currentUser.name,
               email: data.email || currentUser.email,
               isCourseRep: data.isCourseRep || false,
-              isAdmin: data.isAdmin || false
+              isAdmin: data.isAdmin || false,
+              seenBroadcasts: data.seenBroadcasts || []
             };
             setCurrentUser(updatedUser);
             localStorage.setItem('ich100l_user', JSON.stringify(updatedUser));
@@ -1576,6 +1578,44 @@ export default function App() {
 
   // UI state managers
   const [activeTab, setActiveTab] = useState<any>('schedule');
+
+  const unseenAnnouncementsCount = useMemo(() => {
+    if (!currentUser) return 0;
+    const currentSeen = currentUser.seenBroadcasts || [];
+    return visibleAnnouncements.filter(ann => !currentSeen.includes(ann.id)).length;
+  }, [visibleAnnouncements, currentUser]);
+
+  const markAnnouncementsAsSeen = async () => {
+    if (!currentUser || !visibleAnnouncements.length) return;
+    const currentSeen = currentUser.seenBroadcasts || [];
+    const newSeenIds = visibleAnnouncements.map(ann => ann.id);
+    const hasUnseen = newSeenIds.some(id => !currentSeen.includes(id));
+    
+    if (hasUnseen) {
+      const updatedSeen = Array.from(new Set([...currentSeen, ...newSeenIds]));
+      
+      const updatedUser = {
+        ...currentUser,
+        seenBroadcasts: updatedSeen
+      };
+      setCurrentUser(updatedUser);
+      localStorage.setItem('ich100l_user', JSON.stringify(updatedUser));
+      
+      try {
+        const docRef = doc(db, 'users', getSafeDocId(currentUser.matricNumber || ''));
+        await setDoc(docRef, { seenBroadcasts: updatedSeen }, { merge: true });
+        console.log('[Seen] Announcements marked as seen in backend successfully.');
+      } catch (err) {
+        console.error('Failed to mark announcements as seen in backend:', err);
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'announcements') {
+      markAnnouncementsAsSeen();
+    }
+  }, [activeTab, visibleAnnouncements, currentUser]);
 
   // Automatically clear unread notifications when relevant tab is selected by user
   useEffect(() => {
@@ -2754,7 +2794,7 @@ export default function App() {
         onChangeTab={setActiveTab}
         isCourseRep={isCourseRep}
         deadlinesBadge={visiblePendingDeadlinesCount}
-        broadcastsBadge={visibleNotifications.filter(n => n.type === 'announcement' && !n.isRead).length}
+        broadcastsBadge={unseenAnnouncementsCount}
       />
     </div>
   );
