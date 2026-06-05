@@ -113,6 +113,42 @@ export function cleanUrlToDirectDownload(url: string): string {
   return clean;
 }
 
+// Check if user is operating from an Apple iOS device (iPhone, iPad, iPod)
+export function isIOSDevice(): boolean {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
+  return (
+    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    // iPadOS 13+ or desktop-class Safari on iPad
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  );
+}
+
+// High-fidelity document viewing pipeline matching user requirements for iOS
+export function getPDFViewUrl(pdfUrl: string): string {
+  if (!pdfUrl) return '';
+  const clean = pdfUrl.trim();
+
+  // If operating on an iOS device, stream or view the PDF via Google Drive/Docs Viewer directly
+  if (isIOSDevice()) {
+    const googleDriveMatch = clean.match(/https?:\/\/(?:drive|docs)\.google\.com\/(?:file\/d\/|open\?id=)([^/?#\s&]+)/);
+    if (googleDriveMatch && googleDriveMatch[1]) {
+      const fileId = googleDriveMatch[1];
+      // View via Google Drive directly for maximum fidelity on iOS
+      return `https://drive.google.com/file/d/${fileId}/view?usp=drivesdk`;
+    }
+
+    // Wrap local or other PDF URLs through the Google Drive / Docs Online Web Viewer
+    let absoluteUrl = clean;
+    if (clean.startsWith('/')) {
+      absoluteUrl = window.location.origin + clean;
+    }
+    return `https://docs.google.com/viewer?url=${encodeURIComponent(absoluteUrl)}`;
+  }
+
+  // Non-iOS standard raw download extraction pipeline
+  return cleanUrlToDirectDownload(pdfUrl);
+}
+
 export default function ModulesView({
   isCourseRep,
   userMatric,
@@ -673,11 +709,11 @@ export default function ModulesView({
                       
                       {/* FILE VIEWER LINK (EXTERNAL WEB VIEWER, NEW TAB) */}
                       <a
-                        href={cleanUrlToDirectDownload(mod.pdfUrl)}
+                        href={getPDFViewUrl(mod.pdfUrl)}
                         target="_blank"
                         rel="noreferrer"
                         className="p-1.5 bg-indigo-500/10 hover:bg-indigo-500/25 border border-indigo-500/20 rounded-lg text-indigo-400 transition-all flex items-center justify-center cursor-pointer pointer-events-auto outline-none"
-                        title="View PDF in a new browser tab"
+                        title="View PDF"
                         id={`view-pdf-btn-${mod.id}`}
                       >
                         <Eye className="w-3.5 h-3.5" />

@@ -10,7 +10,7 @@ import {
   Trash2, Search, Loader2, LogOut, RefreshCw, Sparkles, Check, AlertTriangle, 
   GraduationCap, Mail, Calendar, CheckCircle, Info, Plus, Settings, LayoutDashboard,
   Ban, MessageSquare, Database, Edit3, Play, Square, Smartphone,
-  Coins, CreditCard, TrendingUp, Activity, BarChart2
+  Coins, CreditCard, TrendingUp, Activity, BarChart2, MessageCircle
 } from 'lucide-react';
 import GlassCard from './GlassCard';
 import FeedbackPage from './FeedbackPage';
@@ -48,7 +48,7 @@ export default function AdminDashboard({
   const [isRevokingSub, setIsRevokingSub] = useState<string | null>(null);
 
   // Bottom navigation state
-  const [activeAdminTab, setActiveAdminTab] = useState<'dashboard' | 'settings' | 'feedback' | 'departments' | 'traffic_payments'>('dashboard');
+  const [activeAdminTab, setActiveAdminTab] = useState<'dashboard' | 'settings' | 'feedback' | 'departments' | 'traffic_payments' | 'messages'>('dashboard');
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
   const [unreadFeedbacksCount, setUnreadFeedbacksCount] = useState(0);
 
@@ -113,6 +113,87 @@ export default function AdminDashboard({
   // Action feedback states
   const [actionFeedback, setActionFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [userToDelete, setUserToDelete] = useState<any | null>(null);
+
+  // In-App Message States & Handlers
+  const [msgTitle, setMsgTitle] = useState('');
+  const [msgBody, setMsgBody] = useState('');
+  const [msgStyle, setMsgStyle] = useState<'modal' | 'banner'>('modal');
+  const [msgTarget, setMsgTarget] = useState('all');
+  const [msgBtnText, setMsgBtnText] = useState('');
+  const [msgBtnLink, setMsgBtnLink] = useState('');
+  const [msgError, setMsgError] = useState('');
+  const [msgSuccess, setMsgSuccess] = useState('');
+  const [isPublishingMsg, setIsPublishingMsg] = useState(false);
+  const [localInApps, setLocalInApps] = useState<any[]>([]);
+
+  // Load and manage in-app messages in Firestore
+  useEffect(() => {
+    if (!db) return;
+    const unsub = onSnapshot(collection(db, 'in_app_messages'), (snap) => {
+      const list: any[] = [];
+      snap.forEach((doc) => {
+        list.push({ id: doc.id, ...doc.data() });
+      });
+      list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+      setLocalInApps(list);
+    }, (error) => {
+      console.warn('[AdminDashboard] Firestore in_app_messages subscribe failed:', error);
+    });
+    return () => unsub();
+  }, []);
+
+  const handlePublishInAppMsg = async () => {
+    if (!msgTitle.trim() || !msgBody.trim()) return;
+    setMsgError('');
+    setMsgSuccess('');
+    setIsPublishingMsg(true);
+    try {
+      const newMsg = {
+        title: msgTitle.trim(),
+        body: msgBody.trim(),
+        style: msgStyle,
+        targetDepartmentId: msgTarget,
+        btnText: msgBtnText.trim() || null,
+        btnLink: msgBtnLink || null,
+        active: true,
+        createdAt: new Date().toISOString()
+      };
+      const msgId = `inapp-${Date.now()}`;
+      if (db) {
+        await setDoc(doc(db, 'in_app_messages', msgId), newMsg);
+      }
+      setMsgTitle('');
+      setMsgBody('');
+      setMsgBtnText('');
+      setMsgBtnLink('');
+      setMsgSuccess('Successfully published manual in-app message overlay!');
+    } catch (err: any) {
+      console.error(err);
+      setMsgError(err.message || 'Firestore write failure.');
+    } finally {
+      setIsPublishingMsg(false);
+    }
+  };
+
+  const handleToggleInAppMsgActive = async (id: string, currentActive: boolean) => {
+    try {
+      if (db) {
+        await setDoc(doc(db, 'in_app_messages', id), { active: !currentActive }, { merge: true });
+      }
+    } catch (err) {
+      console.error('Failed toggling state:', err);
+    }
+  };
+
+  const handleDeleteInAppMsg = async (id: string) => {
+    try {
+      if (db) {
+        await deleteDoc(doc(db, 'in_app_messages', id));
+      }
+    } catch (err) {
+      console.error('Failed deleting message:', err);
+    }
+  };
 
   // Database stats state
   const [dbStats, setDbStats] = useState({
@@ -2220,6 +2301,195 @@ export default function AdminDashboard({
               </GlassCard>
             </div>
           </div>
+        ) : activeAdminTab === 'messages' ? (
+          <div className="max-w-4xl mx-auto space-y-6 pb-32">
+            <div className="flex items-center gap-2 border-b border-slate-900/60 pb-2.5 animate-fadeIn">
+              <MessageSquare className="w-5 h-5 text-indigo-400 shrink-0" />
+              <div>
+                <h3 className="text-sm font-display font-medium text-slate-100">In-App Messages Configurator</h3>
+                <p className="text-[10px] text-slate-500 font-sans mt-0.5">Draft, schedule and publish dynamic overlay alerts and header floating messages to student terminals.</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start animate-fadeIn">
+              {/* Form Configurator */}
+              <GlassCard className="p-5 bg-slate-950/60 border-slate-900 relative">
+                <div className="absolute top-0 right-0 w-24 h-1 bg-gradient-to-l from-indigo-550 via-purple-550 to-indigo-400" />
+                
+                <h4 className="text-xs font-mono font-bold text-slate-200 uppercase tracking-wider mb-4 flex items-center gap-1.5 select-none">
+                  <Plus className="w-4 h-4 text-indigo-400" /> Configure Overlay Message
+                </h4>
+
+                <div className="space-y-4 text-left">
+                  {/* Title */}
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-mono font-bold uppercase tracking-wider text-slate-400 block">Message Title</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Scheduled Maintenance"
+                      value={msgTitle}
+                      onChange={(e) => setMsgTitle(e.target.value)}
+                      className="w-full bg-slate-900/90 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 placeholder:text-slate-600 font-sans"
+                    />
+                  </div>
+
+                  {/* Body */}
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-mono font-bold uppercase tracking-wider text-slate-400 block">Message Body Content</label>
+                    <textarea
+                      placeholder="Provide the explanation or announcement detail..."
+                      value={msgBody}
+                      onChange={(e) => setMsgBody(e.target.value)}
+                      rows={4}
+                      className="w-full bg-slate-900/90 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-sans placeholder:text-slate-600"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Style */}
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-mono font-bold uppercase tracking-wider text-slate-400 block">Display Style</label>
+                      <select
+                        value={msgStyle}
+                        onChange={(e: any) => setMsgStyle(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none font-sans"
+                      >
+                        <option value="modal">Epic Modal Overlay</option>
+                        <option value="banner">Floating Header Banner</option>
+                      </select>
+                    </div>
+
+                    {/* Target */}
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-mono font-bold uppercase tracking-wider text-slate-400 block">Target Audience</label>
+                      <select
+                        value={msgTarget}
+                        onChange={(e) => setMsgTarget(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none font-sans"
+                      >
+                        <option value="all">All Departments</option>
+                        {departments && departments.map((dept: any) => (
+                          <option key={dept.id} value={dept.id}>
+                            {dept.prefix || dept.name} Student
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Action button text */}
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-mono font-bold uppercase tracking-wider text-slate-400 block">Button Text (Optional)</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Check Deadlines"
+                        value={msgBtnText}
+                        onChange={(e) => setMsgBtnText(e.target.value)}
+                        className="w-full bg-slate-900/90 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 placeholder:text-slate-600 font-sans"
+                      />
+                    </div>
+
+                    {/* Redirect link/tab */}
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-mono font-bold uppercase tracking-wider text-slate-400 block">Button Redirect Link</label>
+                      <select
+                        value={msgBtnLink}
+                        onChange={(e) => setMsgBtnLink(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none font-sans"
+                      >
+                        <option value="">No Button Redirect</option>
+                        <option value="deadlines">Navigate: Deadlines Tab</option>
+                        <option value="announcements">Navigate: Broadcasts Tab</option>
+                        <option value="modules">Navigate: Modules Tab</option>
+                        <option value="schedule">Navigate: Schedule Tab</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {msgError && (
+                    <p className="text-[10px] text-rose-400 font-medium font-sans">⚠️ {msgError}</p>
+                  )}
+                  {msgSuccess && (
+                    <p className="text-[10.5px] text-emerald-400 font-medium font-sans">✨ {msgSuccess}</p>
+                  )}
+
+                  <button
+                    type="button"
+                    disabled={isPublishingMsg || !msgTitle.trim() || !msgBody.trim()}
+                    onClick={handlePublishInAppMsg}
+                    className="w-full py-2 bg-gradient-to-r from-indigo-600 to-violet-650 hover:from-indigo-500 hover:to-violet-550 border border-indigo-500/10 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 outline-none"
+                  >
+                    {isPublishingMsg ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <MessageSquare className="w-3.5 h-3.5" />
+                    )}
+                    <span>Publish In-App Message</span>
+                  </button>
+                </div>
+              </GlassCard>
+
+              {/* Logs & active overlays */}
+              <GlassCard className="p-5 bg-slate-950/60 border-slate-900 relative">
+                <div className="absolute top-0 right-0 w-24 h-1 bg-gradient-to-l from-violet-500 via-indigo-500 to-indigo-400" />
+
+                <h4 className="text-xs font-mono font-bold text-slate-200 uppercase tracking-wider mb-4 flex items-center gap-1.5 select-none text-left">
+                  <Database className="w-4 h-4 text-violet-400" /> Active Registry ({localInApps.length})
+                </h4>
+
+                {localInApps.length === 0 ? (
+                  <div className="py-12 text-center select-none">
+                    <p className="text-xs text-slate-500 font-sans italic">No customized manual overlay alerts configured yet.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+                    {localInApps.map((msg: any) => (
+                      <div key={msg.id} className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800/80 flex flex-col justify-between gap-3 text-left">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-1 mb-1">
+                            <span className={`text-[8px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
+                              msg.style === 'modal' ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/20' : 'bg-amber-500/15 text-amber-400 border border-amber-500/20'
+                            }`}>
+                              {msg.style}
+                            </span>
+                            <span className="text-[8px] font-mono text-slate-500">
+                              {msg.createdAt ? new Date(msg.createdAt).toLocaleDateString() : 'N/A'}
+                            </span>
+                          </div>
+                          <p className="text-xs font-bold text-slate-200 truncate">{msg.title}</p>
+                          <p className="text-[10px] text-slate-400 line-clamp-2 mt-0.5 leading-relaxed font-sans">{msg.body}</p>
+                          <p className="text-[8.5px] font-mono text-slate-500 mt-2">
+                            Audience: <span className="text-indigo-450 font-bold uppercase">{msg.targetDepartmentId === 'all' ? 'All Departments' : 'Specific Dept'}</span>
+                          </p>
+                        </div>
+                        <div className="flex items-center justify-end gap-2 border-t border-slate-800/50 pt-2.5">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleInAppMsgActive(msg.id, msg.active)}
+                            className={`p-1 px-2.5 rounded text-[8.5px] font-mono font-bold uppercase border cursor-pointer outline-none transition-colors ${
+                              msg.active 
+                                ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400 animate-pulse' 
+                                : 'bg-slate-950 border-slate-850 text-slate-500 hover:text-slate-355'
+                            }`}
+                          >
+                            {msg.active ? 'Active' : 'Draft'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteInAppMsg(msg.id)}
+                            className="p-1 px-2.5 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-550/15 text-rose-450 hover:text-rose-400 rounded text-[8.5px] font-mono uppercase tracking-wider cursor-pointer outline-none transition-all"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </GlassCard>
+            </div>
+          </div>
         ) : (
           <div className="max-w-4xl mx-auto space-y-6 pb-32">
             <div className="flex items-center gap-2 border-b border-slate-900 db-2.5">
@@ -3027,7 +3297,7 @@ export default function AdminDashboard({
 
           <button
             onClick={() => setActiveAdminTab('traffic_payments')}
-            className="relative flex flex-col items-center justify-center py-1 px-2.5 transition-all duration-300 rounded-xl outline-none cursor-pointer"
+            className="relative flex flex-col items-center justify-center py-1 px-2 transition-all duration-300 rounded-xl outline-none cursor-pointer"
           >
             <div
               className={`flex items-center justify-center p-1.5 rounded-lg transition-colors duration-300 ${
@@ -3040,10 +3310,10 @@ export default function AdminDashboard({
             </div>
             <span
               className={`text-[9.5px] mt-0.5 font-medium tracking-wide font-sans transition-colors duration-300 ${
-                activeAdminTab === 'traffic_payments' ? 'text-indigo-300' : 'text-slate-500'
+                activeAdminTab === 'traffic_payments' ? 'text-indigo-300' : 'text-slate-505'
               }`}
             >
-              Traffic & Payments
+              Analytics
             </span>
             {activeAdminTab === 'traffic_payments' && (
               <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-indigo-400 rounded-full shadow-[0_0_8px_rgba(99,102,241,0.8)]" />
@@ -3051,8 +3321,33 @@ export default function AdminDashboard({
           </button>
 
           <button
+            onClick={() => setActiveAdminTab('messages')}
+            className="relative flex flex-col items-center justify-center py-1 px-2 transition-all duration-300 rounded-xl outline-none cursor-pointer"
+          >
+            <div
+              className={`flex items-center justify-center p-1.5 rounded-lg transition-all duration-300 ${
+                activeAdminTab === 'messages'
+                  ? 'text-indigo-400 bg-indigo-500/10'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <MessageCircle className="w-4 h-4" />
+            </div>
+            <span
+              className={`text-[9.5px] mt-0.5 font-medium tracking-wide font-sans transition-colors duration-300 ${
+                activeAdminTab === 'messages' ? 'text-indigo-300' : 'text-slate-505'
+              }`}
+            >
+              Messages
+            </span>
+            {activeAdminTab === 'messages' && (
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-indigo-400 rounded-full shadow-[0_0_8px_rgba(99,102,241,0.8)]" />
+            )}
+          </button>
+
+          <button
             onClick={() => setActiveAdminTab('settings')}
-            className="relative flex flex-col items-center justify-center py-1 px-2.5 transition-all duration-300 rounded-xl outline-none cursor-pointer"
+            className="relative flex flex-col items-center justify-center py-1 px-2 transition-all duration-300 rounded-xl outline-none cursor-pointer"
           >
             <div
               className={`flex items-center justify-center p-1.5 rounded-lg transition-all duration-300 ${
@@ -3065,7 +3360,7 @@ export default function AdminDashboard({
             </div>
             <span
               className={`text-[9.5px] mt-0.5 font-medium tracking-wide font-sans transition-colors duration-300 ${
-                activeAdminTab === 'settings' ? 'text-indigo-300' : 'text-slate-500'
+                activeAdminTab === 'settings' ? 'text-indigo-300' : 'text-slate-505'
               }`}
             >
               Settings
