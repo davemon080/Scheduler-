@@ -283,7 +283,7 @@ export default function App() {
   }, [currentUser]);
 
   // OTA App Version Pop-up states and listeners
-  const [appLocalVersion, setAppLocalVersion] = useState(() => localStorage.getItem('ich100l_client_app_version') || '1.1.0');
+  const [appLocalVersion, setAppLocalVersion] = useState(() => localStorage.getItem('ich100l_client_app_version') || '1.2.0');
   const [appServerVersion, setAppServerVersion] = useState('');
   const [appReleaseNotes, setAppReleaseNotes] = useState('An over-the-air software package is ready for installation.');
   const [showOtaPopup, setShowOtaPopup] = useState(false);
@@ -300,14 +300,21 @@ export default function App() {
           setAppReleaseNotes(data.releaseNotes);
         }
 
-        const localVer = localStorage.getItem('ich100l_client_app_version') || '1.1.0';
-        setAppLocalVersion(localVer);
+        const storedLocalVer = localStorage.getItem('ich100l_client_app_version');
+        if (!storedLocalVer) {
+          // New device browser context or fresh login, they are already running the latest deployed code
+          localStorage.setItem('ich100l_client_app_version', serverVer);
+          setAppLocalVersion(serverVer);
+        } else {
+          setAppLocalVersion(storedLocalVer);
+          // Retrieve previously dismissed version from localStorage
+          const dismissedVer = localStorage.getItem('ich100l_dismissed_ota_version') || '';
 
-        // Retrieve previously dismissed version from localStorage
-        const dismissedVer = localStorage.getItem('ich100l_dismissed_ota_version') || '';
-
-        if (localVer !== serverVer && dismissedVer !== serverVer) {
-          setShowOtaPopup(true);
+          if (storedLocalVer !== serverVer && dismissedVer !== serverVer) {
+            setShowOtaPopup(true);
+          } else {
+            setShowOtaPopup(false);
+          }
         }
       }
     }, (error) => {

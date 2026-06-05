@@ -188,16 +188,26 @@ export default function ProfileView({
           setReleaseNotes(data.releaseNotes);
         }
         
-        if (localVersion !== serverVer) {
-          setUpdateStep('available');
-          setUpdateStatusText(`New version available (v${serverVer})`);
-        } else {
+        const storedLocalVer = localStorage.getItem('ich100l_client_app_version');
+        if (!storedLocalVer) {
+          localStorage.setItem('ich100l_client_app_version', serverVer);
+          setLocalVersion(serverVer);
           setUpdateStep('idle');
           setUpdateStatusText('System fully updated');
+        } else {
+          setLocalVersion(storedLocalVer);
+          if (storedLocalVer !== serverVer) {
+            setUpdateStep('available');
+            setUpdateStatusText(`New version available (v${serverVer})`);
+          } else {
+            setUpdateStep('idle');
+            setUpdateStatusText('System fully updated');
+          }
         }
       } else {
         // Default initialized if doc doesn't exist
-        setLatestVersion(localVersion);
+        const storedLocalVer = localStorage.getItem('ich100l_client_app_version') || '1.2.0';
+        setLatestVersion(storedLocalVer);
         setUpdateStep('idle');
         setUpdateStatusText('System fully updated');
       }
