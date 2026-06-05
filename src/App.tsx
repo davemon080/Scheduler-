@@ -738,29 +738,18 @@ export default function App() {
           });
           const data = await res.json();
           if (data.success) {
-            const now = new Date();
-            let expiryDate = new Date();
-            expiryDate.setDate(expiryDate.getDate() + 30); // 30-day billing period
-
-            if (currentUser.createdAt) {
-              const regTime = new Date(currentUser.createdAt).getTime();
-              const trialDuration = 7 * 24 * 60 * 60 * 1000; // 7 days (1 week)
-              const trialEndTime = regTime + trialDuration;
-              if (now.getTime() < trialEndTime) {
-                // Subscription starts from after the 7-day trial ends
-                expiryDate = new Date(trialEndTime + 30 * 24 * 60 * 60 * 1000);
-              }
-            }
+            const payAmount = semesterConfig.amount || 1000;
+            const expiryText = 'Current Semester';
 
             const subData = {
               status: 'active',
               matricNumber: currentUser.matricNumber,
-              email: currentUser.email,
+              email: currentUser.email || `${currentUser.matricNumber.replace(/\//g, '_')}@ich100l.edu`,
               name: currentUser.name,
               lastPaymentDate: new Date().toISOString(),
-              expiryDate: expiryDate.toISOString(),
+              expiryDate: expiryText,
               reference: reference,
-              amountPaid: 200,
+              amountPaid: payAmount,
             };
 
             await setDoc(doc(db, 'subscriptions', getSafeDocId(currentUser.matricNumber)), subData);
@@ -771,21 +760,29 @@ export default function App() {
               matricNumber: currentUser.matricNumber,
               email: currentUser.email || `${currentUser.matricNumber.replace(/\//g, '_')}@ich100l.edu`,
               name: currentUser.name,
-              amount: 200,
+              amount: payAmount,
               paidAt: new Date().toISOString(),
               status: 'success'
             });
 
-            setVerificationSuccess('Payment verified successfully! Account upgraded.');
+            setVerificationSuccess('Payment verified successfully! Semester account access granted. ⚡');
             
             // Sync cache
             localStorage.setItem(`ich100l_sub_${currentUser.matricNumber}`, JSON.stringify({
               status: 'active',
-              expiryDate: expiryDate.toISOString(),
+              expiryDate: expiryText,
               lastPaymentDate: subData.lastPaymentDate,
               reference: subData.reference
             }));
 
+            // Force visual subscription updates
+            setSubscriptionDetails({
+              status: 'active',
+              expiryDate: expiryText,
+              lastPaymentDate: subData.lastPaymentDate,
+              reference: subData.reference,
+              amountPaid: payAmount
+            });
             setSubStatus('active');
           } else {
             setVerificationError(data.message || 'Payment validation failed.');
@@ -932,9 +929,35 @@ export default function App() {
           const docSnap = querySnap.docs[0];
           const data = docSnap.data();
           
-          // Must have paid specifically after block started!
+          // Highly resilient evaluation to prevent locking out legitimate paying students:
+          // A student is considered active under semester billing if:
+          // 1. Their Firestore subscription document status is explicitly 'active'
+          // AND AT LEAST ONE OF:
+          //   a. They paid after the official semester start date (if set)
+          //   b. They paid within the last 120 days (the average length of an academic semester/billing block, so we cover early birds and timezone differences)
+          //   c. Their expiryDate is written as 'Current Semester' or is a future date
           const payDateStr = data.lastPaymentDate;
-          const hasPaidThisSemester = payDateStr && (!semStartedAt || payDateStr >= semStartedAt);
+          const isStatusActive = data.status === 'active';
+          
+          let paidRecently = false;
+          try {
+            if (payDateStr) {
+              const diffMs = Date.now() - Date.parse(payDateStr);
+              if (!isNaN(diffMs) && diffMs < 120 * 24 * 60 * 60 * 1000) {
+                paidRecently = true;
+              }
+            }
+          } catch (e) {
+            console.warn('Error parsing lastPaymentDate:', e);
+          }
+
+          const paidAfterSemesterStart = payDateStr && (!semStartedAt || payDateStr >= semStartedAt);
+          const isExpiryValid = data.expiryDate && (
+            data.expiryDate === 'Current Semester' || 
+            data.expiryDate > new Date().toISOString()
+          );
+
+          const hasPaidThisSemester = isStatusActive && (paidRecently || paidAfterSemesterStart || isExpiryValid);
 
           if (hasPaidThisSemester) {
             const details = {
