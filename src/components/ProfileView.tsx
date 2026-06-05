@@ -682,7 +682,7 @@ export default function ProfileView({
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ reference: ref })
+        body: JSON.stringify({ reference: ref, matricNumber: user.matricNumber })
       });
 
       const verifyData = await verifyRes.json();

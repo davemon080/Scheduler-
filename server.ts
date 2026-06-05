@@ -438,7 +438,7 @@ app.use("/uploads", express.static(uploadDir));
 
   // API route to securely verify Paystack transactions
   app.post("/api/paystack-verify", async (req, res) => {
-    const { reference } = req.body;
+    const { reference, matricNumber } = req.body;
     if (!reference) {
       return res.status(400).json({ error: "Reference parameter is required." });
     }
@@ -460,12 +460,96 @@ app.use("/uploads", express.static(uploadDir));
       const data = await response.json();
       
       if (data.status === true && data.data && data.data.status === "success") {
+        const payAmount = data.data.amount / 100;
+        
+        // Find matricNumber and student name from custom fields, input body or email lookup
+        let foundMatric = matricNumber || "";
+        let foundName = "";
+        
+        if (data.data.metadata && data.data.metadata.custom_fields) {
+          const mField = data.data.metadata.custom_fields.find((f: any) => f.variable_name === 'matric_number');
+          if (mField) {
+            foundMatric = foundMatric || mField.value;
+          }
+          const nField = data.data.metadata.custom_fields.find((f: any) => f.variable_name === 'student_name');
+          if (nField) {
+            foundName = foundName || nField.value;
+          }
+        }
+        
+        // Backup: extract from reference if it has format sub-[matric]-timestamp
+        if (!foundMatric && reference.startsWith("sub-")) {
+          // e.g. sub-2025-PS-ICH-0113-1718923
+          const parts = reference.split("-");
+          if (parts.length >= 2) {
+            // Reconstruct likely matric by popping the last timestamp section off and reversing dashes to slashes
+            const timestampPart = parts[parts.length - 1];
+            if (!isNaN(Number(timestampPart)) || timestampPart.length > 10) {
+              const matricPart = parts.slice(1, parts.length - 1).join("/");
+              if (matricPart.length > 3) {
+                foundMatric = matricPart;
+              }
+            }
+          }
+        }
+
+        const customerEmail = data.data.customer?.email;
+        
+        // Tertiary backup: lookup by email in all active users
+        if (!foundMatric && customerEmail && db) {
+          try {
+            const usersColl = collection(db, "users");
+            const usersSnap = await getDocs(usersColl);
+            for (const uDoc of usersSnap.docs) {
+              const uData = uDoc.data();
+              if (uData.email && uData.email.toLowerCase() === customerEmail.toLowerCase()) {
+                foundMatric = uData.matricNumber;
+                foundName = foundName || uData.name;
+                break;
+              }
+            }
+          } catch (dbErr) {
+            console.warn("[Server] Backup query fallback for users table failed:", dbErr);
+          }
+        }
+
+        // Write directly to Firestore server-side on success to bypass client issues
+        if (foundMatric && db) {
+          const safeId = getSafeDocId(foundMatric);
+          const subDocRef = doc(db, 'subscriptions', safeId);
+          
+          await setDoc(subDocRef, {
+            status: 'active',
+            matricNumber: foundMatric,
+            email: customerEmail || `${foundMatric.replace(/\//g, '_')}@ich100l.edu`,
+            name: foundName || "Chemistry Student",
+            lastPaymentDate: new Date().toISOString(),
+            expiryDate: 'Current Semester',
+            reference: reference,
+            amountPaid: payAmount,
+          });
+
+          // Write to chronological payments list
+          await setDoc(doc(db, 'payments', reference), {
+            reference: reference,
+            matricNumber: foundMatric,
+            email: customerEmail || `${foundMatric.replace(/\//g, '_')}@ich100l.edu`,
+            name: foundName || "Chemistry Student",
+            amount: payAmount,
+            paidAt: new Date().toISOString(),
+            status: 'success'
+          });
+          console.log(`[Server API] Securely registered active subscription & payment log for student '${foundMatric}'`);
+        } else {
+          console.warn(`[Server API] Paystack verification succeeded for ref '${reference}', but could not map transaction to a student matricNumber.`);
+        }
+
         return res.json({
           success: true,
           data: {
-            amount: data.data.amount / 100, // Convert Kobo to Naira
+            amount: payAmount,
             reference: data.data.reference,
-            email: data.data.customer?.email,
+            email: customerEmail,
             paidAt: data.data.paid_at,
           }
         });

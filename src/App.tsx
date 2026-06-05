@@ -734,7 +734,7 @@ export default function App() {
           const res = await fetch('/api/paystack-verify', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ reference })
+            body: JSON.stringify({ reference, matricNumber: currentUser.matricNumber })
           });
           const data = await res.json();
           if (data.success) {
