@@ -374,6 +374,29 @@ export default function AdminDashboard({
   };
 
   const getUserStatus = (user: any) => {
+    const isCurrentAdmin = (user.matricNumber || '').trim().toLowerCase() === '2026/ps/ich/0034';
+    const isUserRep = user.isCourseRep === true;
+    
+    if (isCurrentAdmin) {
+      return {
+        type: 'admin',
+        label: 'System Admin',
+        hasAccess: true,
+        badgeClass: 'bg-rose-500/10 text-rose-455 border-rose-500/20',
+        expiryText: 'Lifetime Access'
+      };
+    }
+    
+    if (isUserRep) {
+      return {
+        type: 'rep',
+        label: 'Course Representative',
+        hasAccess: true,
+        badgeClass: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+        expiryText: 'Exempt (Lifetime Access)'
+      };
+    }
+
     // Highly resilient case-insensitive and format-insensitive lookup
     const cleanUserMatric = (user.matricNumber || '').trim().toLowerCase().replace(/[\/-]/g, '');
     const matchedSubKey = Object.keys(subscriptions).find(key => {
@@ -385,20 +408,28 @@ export default function AdminDashboard({
     
     // Check if subscription exists and is active
     if (sub) {
-      if (sub.expiryDate && sub.expiryDate > now) {
+      const isExpiryValid = sub.expiryDate && (
+        sub.expiryDate === 'Current Semester' || 
+        sub.expiryDate > now
+      );
+      const isStatusActive = sub.status === 'active';
+      
+      if (isStatusActive || isExpiryValid) {
         if (sub.reference === 'ADMIN-GRANTED' || sub.adminGranted) {
           return {
             type: 'admin-granted',
             label: 'Ad-Free (Admin Granted)',
+            hasAccess: true,
             badgeClass: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/15',
-            expiryText: `Expires ${new Date(sub.expiryDate).toLocaleDateString()}`
+            expiryText: sub.expiryDate === 'Current Semester' ? 'Semester Pass' : `Expires ${new Date(sub.expiryDate).toLocaleDateString()}`
           };
         }
         return {
           type: 'paid',
           label: 'Ad-Free (Paid)',
+          hasAccess: true,
           badgeClass: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/15',
-          expiryText: `Expires ${new Date(sub.expiryDate).toLocaleDateString()}`
+          expiryText: sub.expiryDate === 'Current Semester' ? 'Semester Pass' : `Expires ${new Date(sub.expiryDate).toLocaleDateString()}`
         };
       }
     }
@@ -406,6 +437,7 @@ export default function AdminDashboard({
     return {
       type: 'expired',
       label: 'Inactive',
+      hasAccess: false,
       badgeClass: 'bg-slate-550/10 text-slate-400 border-slate-800/60',
       expiryText: 'No active pass'
     };
@@ -420,7 +452,7 @@ export default function AdminDashboard({
         matricNumber: targetUser.matricNumber,
         email: targetUser.email || `${targetUser.matricNumber.replace(/\//g, '_')}@ich100l.edu`,
         name: targetUser.name,
-        expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        expiryDate: 'Current Semester',
         lastPaymentDate: new Date().toISOString(),
         reference: 'ADMIN-GRANTED',
         adminGranted: true
@@ -452,7 +484,7 @@ export default function AdminDashboard({
 
       setActionFeedback({
         type: 'success',
-        message: `Successfully granted 30-days free premium to ${targetUser.name}!`
+        message: `Successfully granted Semester-long free access to ${targetUser.name}! ⚡`
       });
 
     } catch (err) {
@@ -1794,24 +1826,41 @@ export default function AdminDashboard({
                       <div key={user.matricNumber}>
                         <GlassCard 
                           className={`p-4 bg-slate-950/35 border-slate-900 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 transition-all hover:bg-slate-950/50 ${
-                            isCurrentAdmin ? 'border-l-[3px] border-rose-500 bg-rose-950/[0.02]' : isUserRep ? 'border-l-[3px] border-amber-500 bg-amber-950/[0.02]' : 'border-l-[3px] border-slate-800'
+                            isCurrentAdmin 
+                              ? 'border-l-[4px] border-rose-500 bg-rose-950/[0.03]' 
+                              : isUserRep 
+                                ? 'border-l-[4px] border-amber-500 bg-amber-950/[0.03]' 
+                                : status.hasAccess
+                                  ? 'border-l-[4px] border-emerald-500 bg-emerald-950/[0.03] shadow-[0_0_15px_rgba(16,185,129,0.04)]'
+                                  : 'border-l-[3px] border-slate-800'
                           }`}
                         >
                           {/* Left Block: Profile Identity */}
                           <div className="flex items-center gap-3 min-w-0">
-                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-black shrink-0 ${
-                              isCurrentAdmin
-                                ? 'bg-[#ef4444] text-white font-mono' 
-                                : isUserRep
-                                  ? 'bg-gradient-to-tr from-amber-450 to-amber-600 bg-amber-500 text-slate-950 font-black'
-                                  : 'bg-gradient-to-tr from-indigo-500 to-violet-600 text-white'
-                            }`}>
-                              {getInitials(user.name)}
+                            <div className="relative">
+                              <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-black shrink-0 ${
+                                isCurrentAdmin
+                                  ? 'bg-[#ef4444] text-white font-mono' 
+                                  : isUserRep
+                                    ? 'bg-gradient-to-tr from-amber-450 to-amber-600 bg-amber-500 text-slate-950 font-black'
+                                    : 'bg-gradient-to-tr from-indigo-500 to-violet-600 text-white'
+                              }`}>
+                                {getInitials(user.name)}
+                              </div>
+                              {status.hasAccess && (
+                                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 border-2 border-[#0f172a] rounded-full shadow-[0_0_8px_rgba(52,211,153,0.65)] animate-pulse" />
+                              )}
                             </div>
                             
                             <div className="min-w-0">
                               <div className="flex items-center gap-2">
                                 <h4 className="text-xs font-bold font-sans text-slate-200 truncate">{user.name}</h4>
+                                {status.hasAccess && (
+                                  <span className="text-[8px] font-mono font-black text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 flex items-center gap-1 shrink-0">
+                                    <span className="w-1 h-1 bg-emerald-400 rounded-full animate-pulse" />
+                                    ACTIVE ACCESS
+                                  </span>
+                                )}
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -1890,14 +1939,14 @@ export default function AdminDashboard({
                                     ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 font-bold'
                                     : 'bg-slate-950 hover:bg-slate-900 border-slate-850 hover:border-slate-800 text-slate-400 hover:text-emerald-400'
                                 }`}
-                                title="Grant 30 Days of Free Ad-Free Premium Access"
+                                title="Grant Semester-long Free Ad-Free Premium Access"
                               >
                                 {isGrantingSub === user.matricNumber ? (
                                   <Loader2 className="w-3 h-3 animate-spin text-emerald-400" />
                                 ) : (
                                   <Sparkles className="w-3 h-3 shrink-0 text-amber-400" />
                                 )}
-                                <span>{status.type === 'admin-granted' ? 'Extend Access' : 'Grant 30d Free'}</span>
+                                <span>{status.type === 'admin-granted' ? 'Extend Access' : 'Grant Semester Free'}</span>
                               </button>
                             )}
 

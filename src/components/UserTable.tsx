@@ -437,9 +437,9 @@ export default function UserTable({
                                   ? "bg-emerald-555/15 text-emerald-405 border-emerald-500/35 hover:bg-emerald-500/25"
                                   : "bg-indigo-650/15 text-indigo-400 border-indigo-500/30 hover:bg-indigo-600/25 hover:text-indigo-300"
                               }`}
-                              title="Directly authorize 30 days full premium access"
+                              title="Directly authorize semester-long free premium access"
                             >
-                              {subStatus === "active" ? "🔄 30d Access (Renew)" : "⚡ Grant 30d"}
+                              {subStatus === "active" ? "🔄 Semester Pass" : "⚡ Grant Sem"}
                             </button>
                           </div>
                         </div>
