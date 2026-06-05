@@ -265,10 +265,12 @@ export default function AdminDashboard({
         // Fetch payments list
         try {
           const paymentsSnap = await getDocs(collection(db, 'payments'));
-          const fetchedPaymentsList = paymentsSnap.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-          }));
+          const fetchedPaymentsList = paymentsSnap.docs
+            .map(doc => ({
+              id: doc.id,
+              ...(doc.data() as any)
+            }))
+            .filter(p => p.status !== 'cancelled' && p.email !== 'kujejamessamuel@gmail.com' && p.matricNumber !== '2025/PS/ICH/0113');
           setPaymentsList(fetchedPaymentsList);
         } catch (payErr) {
           console.warn('[Admin] Failed online payments fetch:', payErr);

@@ -29,6 +29,7 @@ service cloud.firestore {
     match /payments/{paymentId} {
       allow read: if true;
       allow create, update: if isValidId(paymentId) && isValidId(request.resource.data.matricNumber);
+      allow delete: if true;
     }
 
     // System config collection
