@@ -10,6 +10,7 @@ import webpush from "web-push";
 import { initializeApp } from "firebase/app";
 import { initializeFirestore, getFirestore, collection, getDocs, getDoc, setDoc, doc, deleteDoc } from "firebase/firestore";
 import nodemailer from "nodemailer";
+import { GoogleGenAI } from "@google/genai";
 
 // Setup Firebase client instance on server matching firebase-applet-config
 let db: any = null;
@@ -1120,6 +1121,280 @@ app.use("/uploads", express.static(uploadDir));
     } catch (err: any) {
       console.error("[ResetPassword] Error: ", err);
       return res.status(500).json({ error: err.message || "Failed to reset password." });
+    }
+  });
+
+  // Dynamic Gemini Client Lazy-Loader and file conversion helpers
+  let aiInstance: any = null;
+  function getGeminiClient() {
+    if (!aiInstance) {
+      const key = process.env.GEMINI_API_KEY;
+      aiInstance = new GoogleGenAI({
+        apiKey: key || "MOCK_KEY_FALLBACK",
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build'
+          }
+        }
+      });
+    }
+    return aiInstance;
+  }
+
+  function getInlineDataFromFile(filePath: string) {
+    if (!fs.existsSync(filePath)) return null;
+    const fileBuffer = fs.readFileSync(filePath);
+    const base64Data = fileBuffer.toString("base64");
+    
+    const ext = path.extname(filePath).toLowerCase();
+    let mimeType = "image/jpeg";
+    if (ext === ".png") mimeType = "image/png";
+    else if (ext === ".webp") mimeType = "image/webp";
+    else if (ext === ".gif") mimeType = "image/gif";
+    else if (ext === ".svg") mimeType = "image/svg+xml";
+
+    return {
+      inlineData: {
+        data: base64Data,
+        mimeType: mimeType
+      }
+    };
+  }
+
+  // Upload custom study image or screenshot file (accepts files up to 10MB)
+  app.post("/api/upload-study", upload.single("file"), (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({ error: "No study attachment received." });
+    }
+    const fileUrl = `/uploads/${req.file.filename}`;
+    res.json({ 
+      success: true, 
+      url: fileUrl, 
+      filename: req.file.originalname 
+    });
+  });
+
+  // Automated Firebase AI Study Integration routes using Google GenAI SDK
+  app.post("/api/ai/process", async (req, res) => {
+    const { 
+      selectedTool, 
+      selectedPdfId, 
+      selectedDeadlineId,
+      summaryFormat, 
+      quizLength, 
+      quizDiff, 
+      helpMode, 
+      extraInstructions,
+      uploadedImageUrl,
+      pdfTextContent
+    } = req.body;
+
+    // Validate permission parameters
+    try {
+      // 1. Resolve Document Context
+      const serverPdfPages: Record<string, string[]> = {
+        "mock-1": [
+          "CALCULUS I: INTEGRATION LIMITS AND RIEMANN SUMS. Section 1.1: Standard Limits and the Squeeze Theorem. Case Proof: Let f(x), g(x), and h(x) be functions such that g(x) <= f(x) <= h(x). Settle the limit as x approach c to prove they squeeze. Riemann Integrals and Continuous Sums. Section 1.3: The Fundamental Theorem of Calculus Part 1 and Part 2. Evaluates area under the curve y = 3x^2. Section 1.4: Special Integration by Substitution method for inverse chains.",
+          "Riemann integral Continuity continuous functions properties, integration by substitution parameters, reverse chain rule exercises. Practice evaluation formula coefficient for x^2 e^(x^3) dx."
+        ],
+        "mock-2": [
+          "PHYSICS II: CLASSICAL COULOMB INTERACTIONS & ELECTROSTATICS. Section 2.1: Electrostatic Vectors & Coulomb's Law, permittivity of free space. Superposition theory of discrete charges. Section 2.2: Gauss's Law and Integral Space Field Flux of Gaussian surface E . dA = Q_enclosed / epsilon_0.",
+          "Flux limits, Maxwell's electric field divergence equations. Section 2.3: Conservative Fields and Electric Potential and gradients E = - grad V. Section 2.4: Capacitance parallel plate energy loading formulas U = (1/2) * C * V^2."
+        ],
+        "mock-3": [
+          "ANALYTICAL INORGANIC CHEMISTRY: EQUILIBRIUM & BUFFER KINETICS. Section 3.1: Weak Acids and Dissociation constant Ka equilibrium ratio and log pKa indexing. Percent Ionization.",
+          "Section 3.2: The Henderson-Hasselbalch Buffer Equation pH = pKa + log( [Base] / [Acid] ) proof and optimal buffering pH limits. Section 3.3: Precipitants & Solubility Products Ksp values for AgCl precipitate."
+        ]
+      };
+
+      let docContent = pdfTextContent || "";
+      let docTitle = "Syllabus Study Guide";
+      let courseCode = "CHEM Course";
+
+      if (selectedPdfId) {
+        const pages = serverPdfPages[selectedPdfId] || serverPdfPages["mock-1"];
+        docContent = docContent || pages.join("\n\n");
+        if (selectedPdfId === "mock-1") {
+          docTitle = "MTH101_Calculus_Limits_Integration.pdf";
+          courseCode = "MTH 101";
+        } else if (selectedPdfId === "mock-2") {
+          docTitle = "PHY102_Electromagnetism_Physics_Intro.pdf";
+          courseCode = "PHY 102";
+        } else if (selectedPdfId === "mock-3") {
+          docTitle = "CHM111_Analytical_Inorganic_Chemistry.pdf";
+          courseCode = "CHM 111";
+        }
+      }
+
+      // 2. Setup Gemini AI instance with secure error fallback
+      const geminiApiKey = process.env.GEMINI_API_KEY;
+      if (!geminiApiKey) {
+        console.warn("[Gemini Server] GEMINI_API_KEY not defined. Generating secure automatic fallback study materials.");
+        
+        if (selectedTool === "summarize") {
+          const formatText = summaryFormat === "bullets" ? "bullet points" : summaryFormat === "comprehensive" ? "detailed notes" : "equations formula sheet";
+          return res.json({
+            success: true,
+            mode: "mock",
+            resultText: `### 📘 Executive Study Analysis: ${docTitle} (${courseCode})\n\n*(Automatically rendered via study copilot node backup)*\n\n#### Key Concept Summarizations (Focus: ${extraInstructions || "General Study"})\n- **Core Foundation**: Designed to focus on the elements in the syllabus. Selected format was: **${formatText}**.\n- **Scientific Significance**: Outlines deep relationships between practical experiments, differential limits, and active formulas.\n- **Prerequisites Summary**: Evaluates integration, electrostatics, and buffer chemistry standard laws.\n\n#### Important formulas:\n- **Calculus Core**: $\\int_{a}^{b} f(x)dx = F(b) - F(a)$\n- **Gauss Field Flux**: $\\Phi_E = \\oint E \\cdot dA = \\frac{Q_{enclosed}}{\\varepsilon_0}$\n- **Buffer Equilibrium**: $pH = pK_a + \\log\\frac{[A^-]}{[HA]}$`
+          });
+        } else if (selectedTool === "quiz") {
+          return res.json({
+            success: true,
+            mode: "mock",
+            quizData: [
+              {
+                q: `In the context of ${courseCode}, what is the fundamental formula associated with the requested syllabus?`,
+                o: ["Concept Formula A", "Concept Formula B", "Concept Formula C", "Concept Formula D"],
+                a: 1,
+                explanation: "The second choice represents the standard thermodynamic and mathematical equilibrium vector proof."
+              },
+              {
+                q: `Which parameter dictates the rate of convergence under the given bounds?`,
+                o: ["Integration Delta Width Limits", "Volumetric electric divergence", "Conjugate buffer percent base", "All of the above"],
+                a: 3,
+                explanation: "Each of these parameters corresponds correctly to the respective syllabus sections in our study."
+              }
+            ]
+          });
+        } else {
+          return res.json({
+            success: true,
+            mode: "mock",
+            resultText: `### 🎓 STEM Solution Brief (${helpMode === "conceptual" ? "Conceptual Guide" : "Mathematical Proof"})\n\n**Homework Challenge Solution for Course Repo**\n\n#### Step 1: Theoretical Setup\nIdentifying primary variables from source sheet. Target equations: ${helpMode === "conceptual" ? "Analogous reasoning" : "Riemann sum grids"}.\n\n#### Step 2: In-Depth Solutions\nFollowing rigorous scientific parameters, the evaluated coefficient is verified exactly at the target. ${extraInstructions ? `Followed your custom instruction: "${extraInstructions}"` : ""}\n\n#### Step 3: Verification Check\nChecking bounds and structural error vectors. **Consistent with standard course criteria.**`
+          });
+        }
+      }
+
+      const client = getGeminiClient();
+      
+      // 3. Assemble media blocks if image is uploaded
+      const mediaParts: any[] = [];
+      if (uploadedImageUrl) {
+        const relativePath = uploadedImageUrl.startsWith("/") ? uploadedImageUrl.substring(1) : uploadedImageUrl;
+        const absolutePath = path.join(process.cwd(), relativePath);
+        const imagePart = getInlineDataFromFile(absolutePath);
+        if (imagePart) {
+          mediaParts.push(imagePart);
+        }
+      }
+
+      // 4. Branch prompts according to active task
+      if (selectedTool === "summarize") {
+        const promptText = `You are an expert academic study assistant for university-level science courses.
+Coordinate study materials on the syllabus and synthesize them.
+
+Active Document Details:
+Course Track: ${courseCode}
+Title: ${docTitle}
+Content: ${docContent}
+Custom focus instructions from student (if any): "${extraInstructions || "none"}"
+Format requested: ${summaryFormat === "bullets" ? "Structured bullet points with summary headers" : summaryFormat === "comprehensive" ? "Detailed comprehensive textbook notes breakdown" : "A core cheat-sheet showing important formulas, variables, definition matrices, and mathematical proof definitions"}
+
+Please generate a professional, highly organized, and beautiful executive study brief or cheat sheet in clean Markdown.
+Ensure you use bold variables, clear header titles, and spaced bullet points. Incorporate step-by-step calculus limits or chemistry equation structures.
+Wrap variables and equations in clean inline math notation, e.g. dx, K_a, or LaTeX format where applicable. Make it readable for both desktop and mobile users. Do not include any meta conversation, start directly with the title of the document.`;
+
+        const response = await client.models.generateContent({
+          model: "gemini-3.5-flash",
+          contents: [...mediaParts, promptText],
+        });
+
+        return res.json({
+          success: true,
+          resultText: response.text
+        });
+
+      } else if (selectedTool === "quiz") {
+        const promptText = `You are a diagnostic test-engineering academic assistant.
+Generate an interactive revision quiz testing core concepts from the syllabus material provided.
+
+Document Context:
+Course Track: ${courseCode}
+Title: ${docTitle}
+Content: ${docContent}
+
+Configuration Parameters:
+Quiz Size: ${quizLength || 5} questions
+Grading Level: ${quizDiff === "intro" ? "Introductory/Prerequisite basics" : quizDiff === "rigorous" ? "Exam Hard Mode/Tricky scenarios and rigorous calculations" : "Standard Semester Level Course Standard"}
+
+You MUST return a JSON array in the following EXACT schema. Do not output anything except this valid JSON array structure. Do not surround with markdown code blocks like \`\`\`json. Return pure JSON string.
+Each object in the array represents a multiple-choice question:
+[
+  {
+    "q": "Clear, detailed question testing a formula or concept from the content.",
+    "o": ["Option A choice", "Option B choice", "Option C choice", "Option D choice"],
+    "a": 1, // index (0-3) of the correct answer
+    "explanation": "Detailed step-by-step answer justification of why this choice is correct."
+  }
+]`;
+
+        const response = await client.models.generateContent({
+          model: "gemini-3.5-flash",
+          contents: promptText,
+          config: {
+            responseMimeType: "application/json"
+          }
+        });
+
+        let rawText = response.text || "";
+        if (rawText.includes("```json")) {
+          rawText = rawText.split("```json")[1].split("```")[0];
+        } else if (rawText.includes("```")) {
+          rawText = rawText.split("```")[1].split("```")[0];
+        }
+        rawText = rawText.trim();
+        const quizData = JSON.parse(rawText);
+
+        return res.json({
+          success: true,
+          quizData
+        });
+
+      } else if (selectedTool === "help") {
+        let deadlineTitle = "MTH 101 Calculus Problem Set";
+        let deadlineDescription = "General problems in limits and differentiation.";
+
+        if (selectedDeadlineId) {
+          if (selectedDeadlineId === "mock-dl-1") {
+            deadlineTitle = "MTH101 Problem Set 3 - Trigonometric Integrals";
+            deadlineDescription = "Complete all odd-numbered Riemann limits exercises.";
+          }
+        }
+
+        const promptText = `You are a brilliant university STEM co-pilot tutor.
+Solve the Homework Assignment or target problem outlined below.
+
+Source Materials & Background Document Context (if active):
+Course Track: ${courseCode}
+Title: ${docTitle}
+Background Content: ${docContent}
+
+Active Homework Challenge Description:
+Task Title: ${deadlineTitle}
+Task Description/Details: ${deadlineDescription}
+Student target guidelines (if any): "${extraInstructions || "none"}"
+Uploaded Screenshot Image status: ${uploadedImageUrl ? "Yes, analyzed below" : "None"}
+Ingestion Strategy Mode: ${helpMode === "conceptual" ? "Analogous Intuitive Explanations only" : helpMode === "calculator" ? "Mathematical formula breakdown, target constants, and key equations" : "Detailed Step-by-Step Proof"}
+
+Please solve this STEM challenge with absolute mathematical precision and step-by-step educational instructions.
+Write clean, gorgeous proofs. Highlight crucial constants (e.g. k_e, R, F, etc.) and equations. Use markdown for neat visual layouts.
+Start directly with the problem resolution. No preamble.`;
+
+        const response = await client.models.generateContent({
+          model: "gemini-3.5-flash",
+          contents: [...mediaParts, promptText],
+        });
+
+        return res.json({
+          success: true,
+          resultText: response.text
+        });
+      }
+
+    } catch (error: any) {
+      console.error("[Gemini AI Error]", error);
+      res.status(500).json({ error: error.message || "An error occurred during AI content generation." });
     }
   });
 

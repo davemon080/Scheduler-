@@ -22,7 +22,9 @@ import {
   Zap,
   Flame,
   CheckCircle2,
-  Bookmark
+  Bookmark,
+  Upload,
+  Image
 } from "lucide-react";
 import { db } from "../lib/firebase";
 import { collectionGroup, getDocs } from "firebase/firestore";
@@ -265,8 +267,8 @@ export default function AIDashboardPanel({
   const [selectedDeadlineId, setSelectedDeadlineId] = useState<string>("");
   const [customPromptText, setCustomPromptText] = useState<string>("");
 
-  // Workflow loader state: "config" | "analyzing" | "success"
-  const [workflowState, setWorkflowState] = useState<"config" | "analyzing" | "success" | any>("config");
+  // Workflow loader state: "config" | "analyzing" | "success" | "results"
+  const [workflowState, setWorkflowState] = useState<"config" | "analyzing" | "success" | "results" | any>("config");
   const [analysisProgress, setAnalysisProgress] = useState(0);
   const [analysisStageText, setAnalysisStageText] = useState("");
 
@@ -283,6 +285,108 @@ export default function AIDashboardPanel({
 
   // Quiz helper tracker state
   const [selectedQuizAnswers, setSelectedQuizAnswers] = useState<Record<number, number>>({});
+
+  // Real-time API response integrations
+  const [resultText, setResultText] = useState<string>("");
+  const [generatedQuiz, setGeneratedQuiz] = useState<any[]>([]);
+  const [uploadedImageUrl, setUploadedImageUrl] = useState<string>("");
+  const [uploadingImage, setUploadingImage] = useState<boolean>(false);
+
+  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingImage(true);
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await fetch("/api/upload-study", {
+        method: "POST",
+        body: formData
+      });
+      const data = await res.json();
+      if (data.success) {
+        setUploadedImageUrl(data.url);
+      } else {
+        alert(data.error || "Failed to upload study image.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Network timeout uploading image file. Please try again.");
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const handleCommenceAI = async () => {
+    setWorkflowState("analyzing");
+    setAnalysisProgress(10);
+    setAnalysisStageText("Booting Gemini high-performance context parser...");
+
+    const progressInterval = setInterval(() => {
+      setAnalysisProgress(prev => {
+        if (prev < 90) {
+          return prev + Math.floor(Math.random() * 8) + 4;
+        }
+        return prev;
+      });
+    }, 220);
+
+    try {
+      setAnalysisStageText("Inhaling academic context, syllabus materials, and structures...");
+      const payload = {
+        selectedTool,
+        selectedPdfId,
+        selectedDeadlineId,
+        summaryFormat,
+        quizLength,
+        quizDiff,
+        helpMode,
+        extraInstructions,
+        uploadedImageUrl,
+        pdfTextContent: pdfPagesContent[selectedPdfId]?.join("\n\n") || ""
+      };
+
+      const res = await fetch("/api/ai/process", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        throw new Error("The API stream return node failed. Check server parameters.");
+      }
+
+      const data = await res.json();
+
+      setAnalysisStageText("Synthesizing step-by-step calculus proofs and guidelines...");
+      await new Promise(r => setTimeout(r, 600));
+
+      setAnalysisStageText("Compiling custom interactive workspace viewports...");
+      setAnalysisProgress(100);
+      await new Promise(r => setTimeout(r, 500));
+
+      clearInterval(progressInterval);
+
+      if (selectedTool === "quiz") {
+        setGeneratedQuiz(data.quizData || []);
+        setSelectedQuizAnswers({});
+      } else {
+        setResultText(data.resultText || "");
+      }
+
+      setWorkflowState("results");
+    } catch (err: any) {
+      clearInterval(progressInterval);
+      console.error(err);
+      setAnalysisStageText("Engineering connection drop: " + (err.message || "Endpoint error."));
+      alert("AI Processing Encountered an Error: " + (err.message || "Failed connecting to server node."));
+      setWorkflowState("config");
+    }
+  };
 
   // Fallback mock document libraries 
   const mockPdfs: AvailablePdf[] = [
@@ -431,6 +535,718 @@ export default function AIDashboardPanel({
     description: "Please complete all odd-numbered exercises in Calculus Chapter 4 directly on graph paper. Provide full Riemann limits."
   };
 
+  if (selectedTool) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-md">
+        {/* Immersive backdrop graphics */}
+        <div className="absolute top-[10%] left-[25%] w-[45%] h-[45%] bg-[#6366f1]/10 rounded-full filter blur-[100px] pointer-events-none" />
+
+        {/* 1. SEAMLESS WORKSPACE INTERCEPT FOR INDIVIDUAL TOOL PAGES */}
+        <div className="fixed inset-0 z-50 bg-[#050811] flex flex-col font-sans overflow-hidden text-slate-100 select-none text-left">
+          {/* Decorative background gradients */}
+          <div className="absolute top-0 right-1/4 w-[35rem] h-[35rem] bg-[#6366f1]/5 rounded-full filter blur-[110px] pointer-events-none" />
+          <div className="absolute bottom-0 left-1/4 w-[30rem] h-[30rem] bg-[#4f46e5]/5 rounded-full filter blur-[90px] pointer-events-none" />
+
+          {/* Top Panel Workspace Control Bar */}
+          <div className="h-16 border-b border-white/[0.04] bg-slate-955/70 backdrop-blur-md px-6 flex items-center justify-between shrink-0 relative z-30">
+            <div className="flex flex-row items-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedTool(null);
+                  setWorkflowState("config");
+                  setResultText("");
+                  setGeneratedQuiz([]);
+                }}
+                className="p-2.5 hover:bg-slate-900 rounded-xl text-slate-400 hover:text-slate-100 transition-all cursor-pointer flex items-center justify-center"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </button>
+              <div className="h-4 w-[1px] bg-white/[0.08]" />
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-400/20 flex items-center justify-center">
+                  {selectedTool === "summarize" && <FileText className="w-4.5 h-4.5 text-indigo-400" />}
+                  {selectedTool === "quiz" && <Notebook className="w-4.5 h-4.5 text-indigo-400" />}
+                  {selectedTool === "help" && <Sparkles className="w-4.5 h-4.5 text-amber-400" />}
+                </div>
+                <div>
+                  <h1 className="text-sm font-sans font-extrabold text-slate-100">
+                    {selectedTool === "summarize" && "Syllabus Summarizer"}
+                    {selectedTool === "quiz" && "Interactive Exam Builder"}
+                    {selectedTool === "help" && "STEM Co-pilot Solver"}
+                  </h1>
+                  <span className="text-[10px] font-mono text-slate-400 tracking-wider block">
+                    {selectedTool === "summarize" && "Automatic summaries and cheatsheets from lectures"}
+                    {selectedTool === "quiz" && "Draft diagnostic test sheets interactively"}
+                    {selectedTool === "help" && "Solve mathematical proof and homework questions"}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Rep verification node stats */}
+            <div className="flex items-center gap-3">
+              <span className="text-[9px] font-mono font-black bg-indigo-505/10 border border-indigo-500/30 px-3 py-1 rounded-full text-indigo-300 flex items-center gap-1.5 uppercase tracking-widest">
+                <Crown className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
+                <span>Sandbox Alpha</span>
+              </span>
+              <button
+                type="button"
+                onClick={onClose}
+                className="p-2.5 hover:bg-slate-900 border border-white/[0.05] rounded-xl transition-all text-slate-400 hover:text-slate-100 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* MAIN ARENA WORKSPACE CONTAINER */}
+          <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative z-20">
+            {!isCourseRep ? (
+              /* NON-COURSE REPS ARE RESPECTED: COMING SOON VIEWPORT */
+              <div className="flex-1 bg-[#050811] flex flex-col justify-center items-center p-8 text-center select-none relative font-sans">
+                <div className="absolute top-1/3 w-72 h-72 bg-indigo-600/10 rounded-full filter blur-[90px]" />
+                <div className="max-w-md space-y-6 relative z-10 flex flex-col items-center">
+                  <div className="w-16 h-16 rounded-3xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-404 animate-pulse shadow-2xl">
+                    <Sparkles className="w-7 h-7" />
+                  </div>
+                  <div className="space-y-2">
+                    <h2 className="text-lg font-sans font-black text-slate-101 tracking-tight uppercase">
+                      AI Smart Study Workspace
+                    </h2>
+                    <p className="text-xs text-indigo-300/80 font-mono tracking-widest uppercase">
+                      CLOSED BETA DEVELOPMENT PREVIEW
+                    </p>
+                    <p className="text-xs text-slate-404 leading-relaxed pt-2">
+                      The AI Syllabus Sandbox and Quiz Solver is currently undergoing live stress testing of equation parsing on our Gemini servers. Standard student access will spin up with the general semester update.
+                    </p>
+                  </div>
+                  <div className="border border-white/[0.03] rounded-2xl p-4.5 bg-slate-950/70 text-left font-mono text-[10px] text-slate-501 space-y-1 w-full max-w-sm">
+                    <div className="flex justify-between">
+                      <span>Node Status:</span>
+                      <span className="text-amber-501 font-bold">STRESS TEST BETA</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Target Scope:</span>
+                      <span className="text-indigo-404 font-bold">Course Rep Sandbox</span>
+                    </div>
+                    <p className="text-[9px] text-slate-605 italic mt-2 leading-normal border-t border-white/[0.03] pt-1.5 font-sans">
+                      Please reach out to your department course rep to see live LaTeX proofs, or check your bulletin board announcements.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTool(null)}
+                    className="px-6 py-3 bg-indigo-604 hover:bg-indigo-501 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer shadow-lg active:scale-95 border border-indigo-500/30 animate-pulse"
+                  >
+                    Return to Main Dashboard
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* COURSE REPS INGESTION INTERACTIVE WORKSPACE */
+              <>
+                {/* A. VIEWPORT CONTROL SUB-PAGES ACCORDING TO STATE PROGRESSION */}
+                {workflowState === "config" && (
+                  <div className="flex-1 flex flex-col md:flex-row h-full overflow-hidden">
+                    {/* LEFT PANEL CONFIGS */}
+                    <div className="w-full md:w-5/12 max-w-lg border-r border-white/[0.04] bg-slate-950/30 flex flex-col overflow-y-auto no-scrollbar justify-between">
+                      <div className="p-6 space-y-6">
+                        {/* Parameter 1: Select Syllabus PDF Document */}
+                        <div className="space-y-2.5 text-left">
+                          <label className="block text-[9px] font-mono font-black text-indigo-404 uppercase tracking-widest">
+                            STEP 1: Document Corpus Ingestion
+                          </label>
+                          <div className="space-y-2">
+                            {combinedPdfs.map((pdf) => {
+                              const isSelected = selectedPdfId === pdf.id;
+                              return (
+                                <button
+                                  key={pdf.id}
+                                  type="button"
+                                  onClick={() => setSelectedPdfId(pdf.id)}
+                                  className={`w-full p-4.5 rounded-2xl border text-left transition-all ${
+                                    isSelected
+                                      ? "bg-indigo-500/10 border-indigo-400/50 text-white"
+                                      : "bg-slate-900/30 border-white/[0.03] text-slate-404 hover:bg-slate-900/80 hover:text-slate-202"
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <FileText className={`w-4.5 h-4.5 shrink-0 ${isSelected ? "text-indigo-404" : "text-slate-500"}`} />
+                                    <div>
+                                      <p className="text-xs font-bold leading-none">{pdf.title}</p>
+                                      <span className="text-[8.5px] font-mono text-slate-501 mt-1 block uppercase">Course Track: {pdf.courseCode}</span>
+                                    </div>
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Parameter 2: TOOL SPECIFIC INPUT FORMS */}
+                        {/* i. Summarize setup */}
+                        {selectedTool === "summarize" && (
+                          <div className="space-y-4">
+                            <div className="space-y-2 text-left">
+                              <label className="block text-[9px] font-mono font-black text-indigo-404 uppercase tracking-widest">
+                                STEP 2: Synthesis Template Style
+                              </label>
+                              <div className="grid grid-cols-3 gap-2 text-xs font-sans">
+                                {["bullets", "comprehensive", "cheat-sheet"].map((format) => {
+                                  const isActive = summaryFormat === format;
+                                  return (
+                                    <button
+                                      key={format}
+                                      type="button"
+                                      onClick={() => setSummaryFormat(format as any)}
+                                      className={`py-2.5 px-1.5 rounded-xl border text-center transition-all ${
+                                        isActive
+                                          ? "bg-indigo-600/15 border-indigo-400 text-white"
+                                          : "bg-slate-950/20 border-white/[0.03] text-slate-404 hover:text-slate-202"
+                                      }`}
+                                    >
+                                      <span className="capitalize text-[10.5px] font-bold">
+                                        {format === "bullets" && "Bullet Points"}
+                                        {format === "comprehensive" && "Full Notes"}
+                                        {format === "cheat-sheet" && "Formula Sheet"}
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* ii. Quiz setup */}
+                        {selectedTool === "quiz" && (
+                          <div className="space-y-4">
+                            <div className="space-y-2.5 text-left">
+                              <label className="block text-[9px] font-mono font-black text-[#a78bfa] uppercase tracking-widest">
+                                STEP 2: Revision Size & Depth
+                              </label>
+
+                              <div className="space-y-3 p-4 bg-slate-905/40 border border-white/[0.03] rounded-2xl font-sans">
+                                <div className="space-y-1">
+                                  <label className="block text-[8.5px] font-mono text-slate-404 uppercase tracking-wider">
+                                    Number of Diagnostic Items
+                                  </label>
+                                  <select
+                                    value={quizLength}
+                                    onChange={(e) => setQuizLength(Number(e.target.value))}
+                                    className="w-full p-2.5 bg-[#050811] border border-white/[0.05] text-slate-202 text-xs rounded-xl focus:outline-none focus:border-indigo-501"
+                                  >
+                                    <option value={5}>5 Questions</option>
+                                    <option value={10}>10 Questions</option>
+                                    <option value={15}>15 Questions</option>
+                                  </select>
+                                </div>
+
+                                <div className="space-y-1">
+                                  <label className="block text-[8.5px] font-mono text-slate-404 uppercase tracking-wider">
+                                    Diagnostic Rigor
+                                  </label>
+                                  <select
+                                    value={quizDiff}
+                                    onChange={(e) => setQuizDiff(e.target.value as any)}
+                                    className="w-full p-2.5 bg-[#050811] border border-white/[0.05] text-slate-202 text-xs rounded-xl focus:outline-none focus:border-indigo-501"
+                                  >
+                                    <option value="intro">Introductory Core Concept</option>
+                                    <option value="standard">Intermediary Semester Standard</option>
+                                    <option value="rigorous">Exam Hard Mode Challenge</option>
+                                  </select>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* iii. STEM Help Co-pilot Setup */}
+                        {selectedTool === "help" && (
+                          <div className="space-y-4">
+                            <div className="space-y-2.5 text-left">
+                              <label className="block text-[9px] font-mono font-black text-amber-501 uppercase tracking-widest">
+                                STEP 2: Ingestion & Reference
+                              </label>
+
+                              {/* Deadlines horizontal slider */}
+                              <div className="space-y-1.5 font-sans">
+                                <span className="block text-[8.5px] font-mono text-slate-404 uppercase">Target Syllabus Milestone:</span>
+                                <div className="flex gap-2 overflow-x-auto no-scrollbar py-0.5 animate-fade-in">
+                                  {deadlines.slice(0, 4).map((dl) => {
+                                    const isSelected = selectedDeadlineId === dl.id;
+                                    return (
+                                      <button
+                                        key={dl.id}
+                                        type="button"
+                                        onClick={() => setSelectedDeadlineId(dl.id)}
+                                        className={`px-3 py-2 rounded-xl border text-left shrink-0 max-w-[170px] transition-all relative ${
+                                          isSelected
+                                            ? "bg-amber-500/10 border-amber-500/50 text-white"
+                                            : "bg-slate-950 border-white/[0.03] text-slate-404 hover:text-slate-202"
+                                        }`}
+                                      >
+                                        <p className="text-[10.5px] font-black truncate">{dl.title}</p>
+                                        <p className="text-[8px] font-mono text-slate-500 mt-0.5">{dl.courseCode || "MTH 101"}</p>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+
+                              {/* Interactive Screenshot Image Upload Block */}
+                              <div className="space-y-2 mt-3 text-left font-sans">
+                                <span className="block text-[8.5px] font-mono text-slate-404 uppercase">SNAP/UPLOAD WORKSHEET CAPTURE (IMAGE FILE):</span>
+                                <div 
+                                  className={`border-2 border-dashed rounded-2xl p-4.5 text-center flex flex-col items-center justify-center transition-all cursor-pointer relative ${
+                                    uploadedImageUrl ? "border-emerald-500/40 bg-emerald-500/[0.02]" : "border-white/[0.08] hover:border-indigo-500/40 bg-slate-900/20"
+                                  }`}
+                                >
+                                  {uploadingImage ? (
+                                    <div className="py-2 flex flex-col items-center gap-1.5">
+                                      <Loader2 className="w-5 h-5 text-indigo-404 animate-spin" />
+                                      <span className="text-[10px] font-mono text-slate-404">Transmitting file capture...</span>
+                                    </div>
+                                  ) : uploadedImageUrl ? (
+                                    <div className="flex flex-col items-center gap-1.5">
+                                      <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                                      <p className="text-[10.5px] text-slate-202 font-bold">Screenshot Attached Successfully</p>
+                                      <span className="text-[8.5px] font-mono text-slate-501 truncate max-w-[200px]">{uploadedImageUrl}</span>
+                                      
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setUploadedImageUrl("");
+                                        }}
+                                        className="text-[8px] font-mono hover:underline text-red-500 uppercase font-black tracking-widest mt-1 block"
+                                      >
+                                        [ Remove File ]
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <label className="cursor-pointer w-full h-full flex flex-col items-center justify-center py-2">
+                                      <Upload className="w-5 h-5 text-slate-404 mb-1.5" />
+                                      <span className="text-[11px] font-bold text-slate-302">Choose custom screenshot image</span>
+                                      <span className="text-[8px] font-mono text-slate-500 mt-1 block">Drag here or click to open. Supports JPG/PNG/WEBP</span>
+                                      <input 
+                                        type="file" 
+                                        accept="image/*" 
+                                        onChange={handleImageFileChange} 
+                                        className="hidden" 
+                                      />
+                                    </label>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Strategy parameter */}
+                              <div className="space-y-1 mt-3">
+                                <label className="block text-[8.5px] font-mono text-slate-404 uppercase">Ingestion Tutor Strategy</label>
+                                <select
+                                  value={helpMode}
+                                  onChange={(e) => setHelpMode(e.target.value as any)}
+                                  className="w-full p-2 bg-[#050811] border border-white/[0.05] text-slate-202 text-xs rounded-xl focus:outline-none focus:border-indigo-501"
+                                >
+                                  <option value="step-by-step">Detailed Step-by-Step Mathematical Proof</option>
+                                  <option value="conceptual">Analogous Intuitive Explanations only</option>
+                                  <option value="calculator">Constants Ingestion Matrix Breakdown</option>
+                                </select>
+                              </div>
+
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Parameter 3: Extra Guidelines focus */}
+                        <div className="space-y-1 px-1">
+                          <label className="block text-[8.5px] font-mono text-slate-404 uppercase tracking-wider text-left">
+                            STEP 3: Custom Focus Directives (Optional)
+                          </label>
+                          <textarea
+                            value={extraInstructions}
+                            onChange={(e) => setExtraInstructions(e.target.value)}
+                            placeholder={selectedTool === "summarize" ? "Extract chapter 3 formula tables first..." : selectedTool === "quiz" ? "Focus questions on Coulomb energy multipliers..." : "Help with integrating Riemann equations of degree 3..."}
+                            className="w-full h-16 p-3 bg-slate-950/85 border border-white/[0.05] text-slate-202 text-[11px] font-sans rounded-xl focus:outline-none focus:border-indigo-501 resize-none text-left leading-normal placeholder-slate-655"
+                          />
+                        </div>
+
+                      </div>
+
+                      {/* Launch Action triggers */}
+                      <div className="p-6 border-t border-white/[0.03] bg-slate-950/40">
+                        <button
+                          type="button"
+                          onClick={handleCommenceAI}
+                          className="w-full py-4 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-455 hover:to-indigo-555 border border-indigo-505/30 rounded-2xl text-white font-extrabold text-xs uppercase tracking-widest shadow-xl active:scale-98 transition-all cursor-pointer text-center flex items-center justify-center gap-1.5 font-sans"
+                        >
+                          <Play className="w-3.5 h-3.5 fill-white shrink-0" />
+                          <span>Commence Gemini Synthesis</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* RIGHT PANEL - LARGE VISUAL SOURCE DOCUMENT/IMAGE PREVIEW (Requested!) */}
+                    <div className="flex-1 bg-slate-950/45 flex flex-col overflow-y-auto no-scrollbar p-6 md:p-8 justify-center relative">
+                      <div className="max-w-md mx-auto w-full space-y-4 text-left">
+                        <div className="flex items-center justify-between text-[10px] text-slate-404 font-sans select-none">
+                          <span className="font-bold flex items-center gap-1.5 uppercase tracking-wide text-indigo-404">
+                            <BookOpen className="w-4 h-4 text-indigo-404" />
+                            <span>SOURCE REPRESENTING PREVIEW SCREEN</span>
+                          </span>
+                          <span className="text-[8.5px] font-mono bg-indigo-505/10 border border-indigo-500/20 px-2.2 py-0.5 rounded text-indigo-300 font-bold uppercase">
+                            {activePdfObj?.courseCode || "STEM"} CORPUS ACTIVE
+                          </span>
+                        </div>
+
+                        {/* CASE A: Custom screenshot attached mock view */}
+                        {selectedTool === "help" && uploadedImageUrl ? (
+                          <div className="bg-[#0f1422] border border-emerald-500/20 rounded-3xl p-4 relative overflow-hidden shadow-2xl space-y-3.5 text-center animate-fade-in">
+                            <span className="text-[8px] font-mono text-emerald-400 font-black tracking-widest uppercase block">Ingested Student Attachment Screenshot Preview</span>
+                            <div className="w-full h-64 bg-slate-950 rounded-2xl border border-white/[0.03] flex items-center justify-center overflow-hidden">
+                              <img 
+                                src={uploadedImageUrl} 
+                                alt="Active study materials" 
+                                referrerPolicy="no-referrer"
+                                className="max-w-full max-h-full object-contain"
+                              />
+                            </div>
+                            <p className="text-[9.5px] text-slate-404 font-mono italic">
+                              Analyzing resolution parameters at 100% DPI. Full LaTeX solver enabled.
+                            </p>
+                          </div>
+                        ) : selectedTool === "help" ? (
+                          /* CASE B: Math equation sheet math grid mock view */
+                          <div className="bg-[#0f1422] border border-slate-800 rounded-3xl p-6 relative overflow-hidden shadow-2xl space-y-5">
+                            {/* Blue grid paper math line overlay */}
+                            <div className="absolute inset-0 bg-[linear-gradient(rgba(51,65,85,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(51,65,85,0.06)_1px,transparent_1px)] bg-[size:16px_16px] pointer-events-none" />
+                            
+                            {/* Visual checkmark status tag */}
+                            <div className="absolute top-4 right-4 bg-amber-500/10 border border-amber-500/25 text-amber-500 px-3 py-1 rounded-full font-mono text-[9px] font-black uppercase flex items-center gap-1.5">
+                              <Flame className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
+                              <span>Awaiting Ingestion</span>
+                            </div>
+
+                            <div className="border-b border-white/[0.04] pb-3 text-left">
+                              <span className="text-[8px] font-mono text-indigo-400 font-black tracking-widest uppercase">WORKSHEET PREVIEW</span>
+                              <h3 className="text-sm font-sans font-black text-slate-100 mt-0.5 leading-snug">
+                                {activeDeadlineObj?.title}
+                              </h3>
+                              <p className="text-[10px] text-slate-404 font-mono mt-1">
+                                Course Track: {activeDeadlineObj?.courseCode || "CORE CALCULUS / PHYSICS"}
+                              </p>
+                            </div>
+
+                            <div className="p-4 bg-slate-950/70 border border-slate-900 rounded-2xl relative font-mono text-[11px] space-y-3.5 text-slate-300 leading-relaxed text-left">
+                              <div className="space-y-1 text-[10px] text-slate-450">
+                                <span className="font-bold text-indigo-305 uppercase">Milestone Directives:</span>
+                                <p className="italic leading-normal select-text">
+                                  {activeDeadlineObj?.description || "Evaluate derivative integrals, state Gauss permittivity limits, or solve inorganic buffer coefficient ratios."}
+                                </p>
+                              </div>
+                              <div className="space-y-1.5 border-t border-white/[0.03] pt-2.5">
+                                <span className="font-bold text-amber-400 text-[9.5px] uppercase block font-sans">★ Detected Formulas in Syllabus (Real):</span>
+                                <div className="p-3 bg-amber-500/[0.01] border border-amber-500/10 rounded-xl space-y-1 text-[10px] text-slate-300">
+                                  <div>- Integral Sum: <span className="text-white">∫ (ln(x) / x) dx</span></div>
+                                  <div>- Coulomb Vector: <span className="text-white">F = k * (q1 * q2)/r^2</span></div>
+                                  <div>- Dissociation eq: <span className="text-white">Ka = [H+][A-]/[HA]</span></div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          /* CASE C: Syllabus documentation pdf rendering style mock */
+                          <div className="p-6 bg-[#0f1422] border border-slate-800 rounded-3xl relative shadow-2xl">
+                            <span className="text-[8px] font-mono text-indigo-400 font-black tracking-widest uppercase block mb-3">Lectures & Course Content Ingest Preview</span>
+                            <div className="bg-slate-950 border border-slate-900 rounded-2xl p-4 mr-0 space-y-3 text-xs leading-relaxed text-slate-300 select-text overflow-y-auto max-h-72 text-left">
+                              <h4 className="text-white font-bold font-sans border-b border-white/[0.03] pb-1.5">{activePdfObj?.title}</h4>
+                              {pdfStringPages.map((pageText, pIdx) => (
+                                <div key={pIdx} className="space-y-1.5">
+                                  <div className="flex justify-between items-center text-[8.5px] font-mono text-indigo-400">
+                                    <span>TEXT REFERENCE SECTION {pIdx + 1}</span>
+                                    <span>PAGE {pIdx + 1} OF {pdfStringPages.length}</span>
+                                  </div>
+                                  <p className="indent-4 leading-normal italic text-slate-400 pr-1">{pageText}</p>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="mt-4 flex justify-between items-center text-[9px] font-mono text-slate-500">
+                              <span>Syllabus Parsing: Multi-Page Standard Mode</span>
+                              <span className="text-emerald-500 font-bold">● ONLINE CORPUS</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* B. PROGRESS LOADING VIEW */}
+                {workflowState === "analyzing" && (
+                  <div className="flex-1 bg-[#050811] flex flex-col justify-center items-center px-6 text-center select-none font-sans relative">
+                    <div className="absolute top-1/3 w-60 h-60 bg-indigo-500/10 rounded-full filter blur-[70px] animate-pulse animate-fade-in" />
+                    <div className="space-y-6 max-w-xs relative z-10 flex flex-col items-center">
+                      <div className="relative">
+                        <div className="w-24 h-24 rounded-full border-4 border-indigo-505/10 border-t-indigo-500 animate-spin flex items-center justify-center">
+                          <Brain className="w-10 h-10 text-indigo-400 animate-pulse" />
+                        </div>
+                        <span className="absolute -bottom-1 -right-1 text-[9px] font-mono font-black text-indigo-100 bg-slate-950 border border-indigo-505/30 px-2 py-0.5 rounded-full">
+                          {analysisProgress}%
+                        </span>
+                      </div>
+                      <div className="space-y-1.5">
+                        <h3 className="text-xs font-mono font-black text-indigo-300 uppercase tracking-widest">
+                          Evaluating Course Parameters
+                        </h3>
+                        <p className="text-xs text-slate-350 min-h-[35px] font-sans leading-relaxed text-slate-400">
+                          {analysisStageText}
+                        </p>
+                      </div>
+                      <div className="w-full border border-white/[0.04] rounded-2xl p-4 bg-slate-950/80 font-mono text-[9px] text-slate-500 text-left space-y-1 max-w-[270px]">
+                        <div className="flex justify-between">
+                          <span>API CORE ADAPTER:</span>
+                          <span className="text-indigo-400 font-bold">GEMINI-FLASH-AI</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>LATENCY RATE:</span>
+                          <span className="text-emerald-500 font-bold">34ms</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>ACTIVE ENGINE:</span>
+                          <span className="text-amber-500 font-bold">GEMINI-3.5-FLASH</span>
+                        </div>
+                        <div className="h-[1px] bg-white/[0.04] my-2" />
+                        <div className="flex items-center gap-1.5 font-sans">
+                          <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-400 shrink-0" />
+                          <span className="text-indigo-300">Synchronizing database vectors...</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* C. GORGEOUS COMPREHENSIVE DYNAMIC WORKSPACE RESULTS SCREEN (Requested!) */}
+                {workflowState === "results" && (
+                  <div className="flex-1 flex flex-col h-full overflow-hidden animate-fade-in text-left">
+                    <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+                      {/* Left helper info board Column */}
+                      <div className="w-full md:w-3/12 max-w-sm border-r border-white/[0.04] bg-slate-950/40 p-6 flex flex-col justify-between overflow-y-auto no-scrollbar">
+                        <div className="space-y-5">
+                          <div>
+                            <span className="text-[8.5px] font-mono text-emerald-500 font-black uppercase tracking-widest block font-bold">AI Study Synthesis Success</span>
+                            <h2 className="text-sm font-sans font-black text-white mt-1">Diagnostic Output Generated</h2>
+                            <p className="text-xs text-slate-404 leading-relaxed mt-1.5 pt-1">
+                              Our Gemini high-performance AI finished evaluating your syllabus specifications. Real-time parsed output is displayed in the active workplace window.
+                            </p>
+                          </div>
+
+                          <div className="border border-white/[0.03] rounded-2xl p-4 bg-slate-901/20 space-y-2.5 font-mono text-[10px] text-slate-455">
+                            <div className="flex justify-between">
+                              <span>Source:</span>
+                              <span className="text-white font-bold truncate max-w-[125px]">{activePdfObj?.title}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Course Track:</span>
+                              <span className="text-indigo-404 font-black">{activePdfObj?.courseCode}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Tool Type:</span>
+                              <span className="text-amber-500 font-bold capitalize">{selectedTool}</span>
+                            </div>
+                            {extraInstructions && (
+                              <div className="border-t border-white/[0.03] pt-2">
+                                <span className="text-[8px] text-indigo-404 block uppercase font-bold">Focus Instructions Applied:</span>
+                                <p className="text-[9.5px] italic text-slate-350 pr-1 truncate mt-0.5">{extraInstructions}</p>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="p-4 bg-emerald-500/[0.02] border border-emerald-500/10 rounded-2xl flex items-start gap-2.5">
+                            <CheckCircle2 className="w-4.5 h-4.5 text-emerald-500 shrink-0 mt-0.5" />
+                            <div>
+                              <p className="text-[11px] font-sans font-black text-slate-200 uppercase">Verification Passed</p>
+                              <span className="text-[9.5px] text-slate-455 font-sans block leading-normal mt-0.5">
+                                Mathematical equations layout and coordinates have successfully parsed limits.
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Controls */}
+                        <div className="space-y-2.5 mt-8 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setWorkflowState("config");
+                              setResultText("");
+                              setGeneratedQuiz([]);
+                            }}
+                            className="w-full py-3 bg-slate-900 hover:bg-slate-850 border border-white/[0.05] text-slate-202 rounded-xl text-xs font-black uppercase tracking-widest transition-all cursor-pointer text-center flex items-center justify-center gap-1.5 font-sans"
+                          >
+                            <RotateCw className="w-3.5 h-3.5 text-slate-400" />
+                            <span>Run Another Inquiry</span>
+                          </button>
+                          
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedTool(null);
+                              setWorkflowState("config");
+                            }}
+                            className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all cursor-pointer text-center flex items-center justify-center gap-1.5 font-sans"
+                          >
+                            <ArrowLeft className="w-3.5 h-3.5" />
+                            <span>Return to Portal</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Right Workspace Display Screen (Syllabus summary list or solved calculation or interactive quizzes) */}
+                      <div className="flex-1 flex flex-col bg-slate-950/60 overflow-y-auto no-scrollbar p-6 md:p-8">
+                        {/* CASE A: RENDER INTERACTIVE revision generated quiz (Satisfies user request!) */}
+                        {selectedTool === "quiz" && (
+                          <div className="max-w-2xl mx-auto w-full space-y-6 text-left select-text">
+                            <div className="border-b border-white/[0.04] pb-3 shrink-0 flex items-center justify-between">
+                              <div>
+                                <span className="text-[8.5px] font-mono text-indigo-400 font-bold uppercase tracking-widest">Active Exam Workbook</span>
+                                <h3 className="text-md font-sans font-extrabold text-[#93c5fd] mt-0.5">Interactive revision exam diagnostic</h3>
+                              </div>
+                              <div className="text-[9.5px] font-mono bg-zinc-900 border border-white/[0.05] px-2.5 py-1 rounded-xl text-indigo-200 font-bold uppercase shrink-0">
+                                {generatedQuiz.length} QUESTION ITEMS COMPILED
+                              </div>
+                            </div>
+
+                            <div className="space-y-6 font-sans">
+                              {generatedQuiz.length === 0 ? (
+                                <div className="text-center py-10 font-mono text-xs text-slate-400 select-none">
+                                  No interactive questions generated. Please verify parameters and rebuild.
+                                </div>
+                              ) : (
+                                generatedQuiz.map((quiz, qIdx) => {
+                                  const selectedOptionIdx = selectedQuizAnswers[qIdx];
+                                  const isSelected = selectedOptionIdx !== undefined;
+
+                                  return (
+                                    <div key={qIdx} className="p-5.5 bg-[#0f1322]/80 border border-white/[0.03] rounded-3xl space-y-3.5 shadow-xl relative animate-fade-in text-left">
+                                      <div className="flex items-start gap-2">
+                                        <span className="text-xs font-mono font-black text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded mt-0.5">Q{qIdx + 1}</span>
+                                        <p className="text-sm font-bold text-slate-100 leading-normal">{quiz.q}</p>
+                                      </div>
+
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 pl-2">
+                                        {quiz.o.map((option: string, optIdx: number) => {
+                                          const isThisOptionSelected = selectedOptionIdx === optIdx;
+                                          const isCorrectAnswer = optIdx === quiz.a;
+
+                                          let cardStyle = "bg-slate-950/40 border-white/[0.03] text-slate-350 hover:bg-slate-900/70 hover:text-white";
+                                          if (isThisOptionSelected) {
+                                            if (isCorrectAnswer) {
+                                              cardStyle = "bg-emerald-500/15 border-emerald-500 text-emerald-205 font-bold cursor-default";
+                                            } else {
+                                              cardStyle = "bg-red-500/15 border-red-500 text-red-205 font-bold cursor-default";
+                                            }
+                                          } else if (isSelected && isCorrectAnswer) {
+                                            cardStyle = "bg-emerald-500/5 border-emerald-500/20 text-emerald-400 cursor-default";
+                                          } else if (isSelected) {
+                                            cardStyle = "bg-slate-950/20 border-white/[0.02] text-slate-600 cursor-default opacity-50";
+                                          }
+
+                                          return (
+                                            <button
+                                              key={optIdx}
+                                              type="button"
+                                              onClick={() => {
+                                                if (isSelected) return;
+                                                setSelectedQuizAnswers(prev => ({
+                                                  ...prev,
+                                                  [qIdx]: optIdx
+                                                }));
+                                              }}
+                                              disabled={isSelected}
+                                              className={`w-full p-3.5 rounded-xl border text-left flex items-center justify-between transition-all text-xs cursor-pointer ${cardStyle}`}
+                                            >
+                                              <span className="truncate max-w-[280px]">{option}</span>
+                                              {isThisOptionSelected && (
+                                                isCorrectAnswer 
+                                                  ? <span className="text-[8px] font-mono font-bold bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/30">CORRECT</span>
+                                                  : <span className="text-[8px] font-mono font-bold bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded border border-red-500/30">INCORRECT</span>
+                                              )}
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+
+                                      {/* Explanation box */}
+                                      {isSelected && (
+                                        <div className="p-4 bg-slate-950 border border-white/[0.03] rounded-2xl text-xs leading-normal font-sans text-slate-400 mt-2 select-text">
+                                          <span className="font-mono font-bold text-indigo-400 block uppercase text-[8px] tracking-wider mb-1">TUTOR EXPLANATION DEEP STUDY:</span>
+                                          <p className="italic">{quiz.explanation || "No additional conceptual comments stored."}</p>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* CASE B: RENDER SUMMARIZE OR HELP SOLVED SOLUTION BRIEF CANVAS */}
+                        {(selectedTool === "summarize" || selectedTool === "help") && (
+                          <div className="max-w-2xl mx-auto w-full space-y-5 text-left select-text">
+                            <div className="border-b border-white/[0.04] pb-3 shrink-0 flex items-center justify-between">
+                              <div>
+                                <span className="text-[8.5px] font-mono text-amber-500 font-black uppercase tracking-widest block font-bold">
+                                  {selectedTool === "summarize" ? "Syllabus Synthetic Brief" : "Inorganic & Physics Proof Matrix"}
+                                </span>
+                                <h3 className="text-md font-sans font-extrabold text-slate-100 mt-0.5">
+                                  {selectedTool === "summarize" ? activePdfObj?.title : activeDeadlineObj?.title}
+                                </h3>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(resultText);
+                                  alert("Text response successfully copied to system clipboard!");
+                                }}
+                                className="px-3.5 py-2.2 bg-slate-900 hover:bg-slate-850 border border-white/[0.05] text-slate-202 rounded-xl text-[10.5px] font-mono font-bold uppercase tracking-wider transition-all cursor-pointer"
+                              >
+                                [ Copy Results ]
+                              </button>
+                            </div>
+
+                            {/* Main output terminal styled nicely */}
+                            <div className="p-6.5 bg-[#0f1423] border border-white/[0.04] rounded-3xl relative overflow-hidden shadow-2xl">
+                              {/* Graph math paper watermarks */}
+                              <div className="absolute inset-0 bg-[#000000]/25 pointer-events-none" />
+                              
+                              <div className="relative z-10 leading-relaxed text-xs text-slate-300 font-sans space-y-4 whitespace-pre-wrap select-text selection:bg-indigo-500/30">
+                                {resultText || "Generating study layout contents..."}
+                              </div>
+                            </div>
+
+                            {/* Math symbol prompt guidelines badge */}
+                            <div className="flex justify-between items-center text-[9px] font-mono text-slate-500">
+                              <span>Output Type: Live stream formatting LaTeX • G-3.5-flash-study-node</span>
+                              <span>Sync Resolution Completed</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-md">
       {/* Immersive backdrop graphics */}
@@ -476,104 +1292,131 @@ export default function AIDashboardPanel({
         </div>
 
         {/* Scrollable Centerpiece Choice Portal */}
-        <div className="flex-1 overflow-y-auto no-scrollbar p-6 space-y-6 text-left">
-          
-          <div className="space-y-1.5">
-            <h2 className="text-xl font-display font-black text-white tracking-tight flex items-center gap-2">
-              Gemini Co-Pilot Portal
-              <Sparkles className="w-5 h-5 text-indigo-400 animate-pulse" />
-            </h2>
-            <p className="text-xs text-slate-400 font-sans leading-relaxed">
-              Launch dedicated, visual-first interactive study sheets built from your uploaded materials.
-            </p>
-          </div>
-
-          {/* 3 AI Tools Premium Grid */}
-          <div className="grid grid-cols-1 gap-4 pb-20">
+        {!isCourseRep ? (
+          <div className="flex-1 flex flex-col items-center justify-center p-8 bg-[#050812] text-center space-y-6 select-none relative">
+            <div className="absolute top-[20%] left-[20%] w-[60%] h-[60%] bg-indigo-500/5 rounded-full filter blur-[120px] pointer-events-none" />
             
-            {/* Tool 1: PDF Summarization Card */}
-            <div 
-              onClick={() => setSelectedTool("summarize")}
-              className="p-5 bg-[#0a0f21] border border-slate-800 hover:border-indigo-500/50 rounded-3xl cursor-pointer transition-all duration-300 group flex items-start gap-4 relative overflow-hidden shadow-lg"
-              id="ai-tool-btn-summarize"
-            >
-              <div className="absolute top-0 right-0 p-6 opacity-[0.02] text-indigo-400 transform translate-x-2 -translate-y-2 group-hover:scale-105 transition-transform duration-300">
-                <FileText className="w-24 h-24" />
-              </div>
-              <div className="p-3.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 group-hover:bg-indigo-500/20 text-indigo-400 shrink-0 transition-colors">
-                <FileText className="w-5.5 h-5.5" />
-              </div>
-              <div className="flex-1 space-y-1.5 min-w-0">
-                <span className="text-[9px] font-mono text-indigo-300 uppercase tracking-widest font-black block">PDF Core Engine</span>
-                <h3 className="text-base font-sans font-black text-slate-100 group-hover:text-indigo-400 flex items-center gap-1.5 transition-colors">
-                  Syllabus PDF Summarizer
-                  <ChevronRight className="w-4 h-4 text-indigo-400 group-hover:translate-x-1 transition-transform" />
-                </h3>
-                <p className="text-[11px] text-slate-400 leading-relaxed font-sans mt-0.5">
-                  Generate beautiful executive briefs & cheat sheets from uploaded lecture syllabus PDFs.
-                </p>
-              </div>
+            <div className="p-5 rounded-3xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 animate-pulse relative z-10 flex items-center justify-center">
+              <Sparkles className="w-12 h-12 text-indigo-400" />
             </div>
 
-            {/* Tool 2: Quiz Generation Card */}
-            <div 
-              onClick={() => setSelectedTool("quiz")}
-              className="p-5 bg-[#0a0f21] border border-slate-800 hover:border-indigo-500/50 rounded-3xl cursor-pointer transition-all duration-300 group flex items-start gap-4 relative overflow-hidden shadow-lg"
-              id="ai-tool-btn-quiz"
-            >
-              <div className="absolute top-0 right-0 p-6 opacity-[0.02] text-indigo-400 transform translate-x-2 -translate-y-2 group-hover:scale-105 transition-transform duration-300">
-                <Brain className="w-24 h-24" />
-              </div>
-              <div className="p-3.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 group-hover:bg-indigo-500/20 text-indigo-400 shrink-0 transition-colors">
-                <Brain className="w-5.5 h-5.5" />
-              </div>
-              <div className="flex-1 space-y-1.5 min-w-0">
-                <span className="text-[9px] font-mono text-indigo-300 uppercase tracking-widest font-black block">Diagnostic Tools</span>
-                <h3 className="text-base font-sans font-black text-slate-100 group-hover:text-indigo-400 flex items-center gap-1.5 transition-colors">
-                  Topic Revision Quiz Master
-                  <ChevronRight className="w-4 h-4 text-indigo-400 group-hover:translate-x-1 transition-transform" />
-                </h3>
-                <p className="text-[11px] text-slate-400 leading-relaxed font-sans mt-0.5">
-                  Construct interactive mock quizzes directly testing core concepts inside syllabus documents.
-                </p>
-              </div>
+            <div className="space-y-3 pt-2 max-w-sm relative z-10 font-sans">
+              <h3 className="text-xl font-sans font-black text-white tracking-tight uppercase">
+                AI Study Portals Locked
+              </h3>
+              <p className="text-xs text-slate-400 leading-relaxed leading-normal px-2">
+                This premium generative AI model is currently being integrated by your Class Representatives. Standard student access will spin up with the general semester update!
+              </p>
             </div>
 
-            {/* Tool 3: Assignment Help Card */}
-            <div 
-              onClick={() => setSelectedTool("help")}
-              className="p-5 bg-[#0a0f21] border border-slate-800 hover:border-indigo-500/50 rounded-3xl cursor-pointer transition-all duration-300 group flex items-start gap-4 relative overflow-hidden shadow-lg"
-              id="ai-tool-btn-help"
+            <button
+              type="button"
+              onClick={onClose}
+              className="relative z-10 px-6 py-3 bg-indigo-600 hover:bg-indigo-550 border border-indigo-500/30 rounded-2xl text-white font-mono font-black text-xs uppercase tracking-widest transition-all cursor-pointer shadow-lg active:scale-95"
             >
-              <div className="absolute top-0 right-0 p-6 opacity-[0.02] text-indigo-400 transform translate-x-2 -translate-y-2 group-hover:scale-105 transition-transform duration-300">
-                <HelpCircle className="w-24 h-24" />
+              Back to Class Board
+            </button>
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto no-scrollbar p-6 space-y-6 text-left">
+            
+            <div className="space-y-1.5">
+              <h2 className="text-xl font-display font-black text-white tracking-tight flex items-center gap-2">
+                Gemini Co-Pilot Portal
+                <Sparkles className="w-5 h-5 text-indigo-400 animate-pulse" />
+              </h2>
+              <p className="text-xs text-slate-400 font-sans leading-relaxed">
+                Launch dedicated, visual-first interactive study sheets built from your uploaded materials.
+              </p>
+            </div>
+
+            {/* 3 AI Tools Premium Grid */}
+            <div className="grid grid-cols-1 gap-4 pb-20">
+              
+              {/* Tool 1: PDF Summarization Card */}
+              <div 
+                onClick={() => setSelectedTool("summarize")}
+                className="p-5 bg-[#0a0f21] border border-slate-800 hover:border-indigo-500/50 rounded-3xl cursor-pointer transition-all duration-300 group flex items-start gap-4 relative overflow-hidden shadow-lg"
+                id="ai-tool-btn-summarize"
+              >
+                <div className="absolute top-0 right-0 p-6 opacity-[0.02] text-indigo-400 transform translate-x-2 -translate-y-2 group-hover:scale-105 transition-transform duration-300">
+                  <FileText className="w-24 h-24" />
+                </div>
+                <div className="p-3.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 group-hover:bg-indigo-500/20 text-indigo-400 shrink-0 transition-colors">
+                  <FileText className="w-5.5 h-5.5" />
+                </div>
+                <div className="flex-1 space-y-1.5 min-w-0">
+                  <span className="text-[9px] font-mono text-indigo-300 uppercase tracking-widest font-black block">PDF Core Engine</span>
+                  <h3 className="text-base font-sans font-black text-slate-100 group-hover:text-indigo-400 flex items-center gap-1.5 transition-colors">
+                    Syllabus PDF Summarizer
+                    <ChevronRight className="w-4 h-4 text-indigo-400 group-hover:translate-x-1 transition-transform" />
+                  </h3>
+                  <p className="text-[11px] text-slate-400 leading-relaxed font-sans mt-0.5">
+                    Generate beautiful executive briefs & cheat sheets from uploaded lecture syllabus PDFs.
+                  </p>
+                </div>
               </div>
-              <div className="p-3.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 group-hover:bg-indigo-500/20 text-indigo-400 shrink-0 transition-colors">
-                <HelpCircle className="w-5.5 h-5.5" />
+
+              {/* Tool 2: Quiz Generation Card */}
+              <div 
+                onClick={() => setSelectedTool("quiz")}
+                className="p-5 bg-[#0a0f21] border border-slate-800 hover:border-indigo-500/50 rounded-3xl cursor-pointer transition-all duration-300 group flex items-start gap-4 relative overflow-hidden shadow-lg"
+                id="ai-tool-btn-quiz"
+              >
+                <div className="absolute top-0 right-0 p-6 opacity-[0.02] text-indigo-400 transform translate-x-2 -translate-y-2 group-hover:scale-105 transition-transform duration-300">
+                  <Brain className="w-24 h-24" />
+                </div>
+                <div className="p-3.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 group-hover:bg-indigo-500/20 text-indigo-400 shrink-0 transition-colors">
+                  <Brain className="w-5.5 h-5.5" />
+                </div>
+                <div className="flex-1 space-y-1.5 min-w-0">
+                  <span className="text-[9px] font-mono text-indigo-300 uppercase tracking-widest font-black block">Diagnostic Tools</span>
+                  <h3 className="text-base font-sans font-black text-slate-100 group-hover:text-indigo-400 flex items-center gap-1.5 transition-colors">
+                    Topic Revision Quiz Master
+                    <ChevronRight className="w-4 h-4 text-indigo-400 group-hover:translate-x-1 transition-transform" />
+                  </h3>
+                  <p className="text-[11px] text-slate-400 leading-relaxed font-sans mt-0.5">
+                    Construct interactive mock quizzes directly testing core concepts inside syllabus documents.
+                  </p>
+                </div>
               </div>
-              <div className="flex-1 space-y-1.5 min-w-0">
-                <span className="text-[9px] font-mono text-indigo-300 uppercase tracking-widest font-black block">Active Assistant</span>
-                <h3 className="text-base font-sans font-black text-slate-100 group-hover:text-indigo-400 flex items-center gap-1.5 transition-colors">
-                  Assignment Solver Co-Pilot
-                  <ChevronRight className="w-4 h-4 text-indigo-400 group-hover:translate-x-1 transition-transform" />
-                </h3>
-                <p className="text-[11px] text-slate-400 leading-relaxed font-sans mt-0.5">
-                  Settle homework questions with pristine step-by-step calculus proofs and guidelines.
-                </p>
+
+              {/* Tool 3: Assignment Help Card */}
+              <div 
+                onClick={() => setSelectedTool("help")}
+                className="p-5 bg-[#0a0f21] border border-slate-800 hover:border-indigo-500/50 rounded-3xl cursor-pointer transition-all duration-300 group flex items-start gap-4 relative overflow-hidden shadow-lg"
+                id="ai-tool-btn-help"
+              >
+                <div className="absolute top-0 right-0 p-6 opacity-[0.02] text-indigo-400 transform translate-x-2 -translate-y-2 group-hover:scale-105 transition-transform duration-300">
+                  <HelpCircle className="w-24 h-24" />
+                </div>
+                <div className="p-3.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 group-hover:bg-indigo-500/20 text-indigo-400 shrink-0 transition-colors">
+                  <HelpCircle className="w-5.5 h-5.5" />
+                </div>
+                <div className="flex-1 space-y-1.5 min-w-0">
+                  <span className="text-[9px] font-mono text-indigo-300 uppercase tracking-widest font-black block">Active Assistant</span>
+                  <h3 className="text-base font-sans font-black text-slate-100 group-hover:text-indigo-400 flex items-center gap-1.5 transition-colors">
+                    Assignment Solver Co-Pilot
+                    <ChevronRight className="w-4 h-4 text-indigo-400 group-hover:translate-x-1 transition-transform" />
+                  </h3>
+                  <p className="text-[11px] text-slate-400 leading-relaxed font-sans mt-0.5">
+                    Settle homework questions with pristine step-by-step calculus proofs and guidelines.
+                  </p>
+                </div>
               </div>
+
+            </div>
+
+            {/* Aesthetic Footer Note */}
+            <div className="p-4 bg-slate-950/60 border border-slate-900 rounded-2xl flex items-start gap-3 text-[11px] text-slate-400 leading-relaxed">
+              <Sparkles className="w-4.5 h-4.5 text-indigo-400 shrink-0 mt-0.5 animate-pulse" />
+              <span>
+                All document scanning operates in an offline, local preview workspace node inside this browser window.
+              </span>
             </div>
 
           </div>
-
-          {/* Aesthetic Footer Note */}
-          <div className="p-4 bg-slate-950/60 border border-slate-900 rounded-2xl flex items-start gap-3 text-[11px] text-slate-400 leading-relaxed">
-            <Sparkles className="w-4.5 h-4.5 text-indigo-400 shrink-0 mt-0.5 animate-pulse" />
-            <span>
-              All document scanning operates in an offline, local preview workspace node inside this browser window.
-            </span>
-          </div>
-
-        </div>
+        )}
 
         {/* FULL-SCREEN SLIDE-UP DETAIL WORKSPACE */}
         <AnimatePresence>

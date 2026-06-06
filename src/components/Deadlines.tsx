@@ -305,23 +305,25 @@ export default function Deadlines({
                             <span>Deadline: <strong className="text-slate-300 font-mono">{dl.dueDate}</strong></span>
                           </div>
 
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onGetAIHelp?.({
-                                type: 'deadline',
-                                id: dl.id,
-                                name: dl.title,
-                                details: dl.description || ''
-                              });
-                            }}
-                            className="text-[9.5px] font-mono font-extrabold uppercase tracking-wider text-indigo-400 hover:text-indigo-300 flex items-center gap-1 bg-indigo-500/10 hover:bg-indigo-505/20 px-2.5 py-1 rounded-lg border border-indigo-500/25 active:scale-95 transition-all cursor-pointer outline-none"
-                            id={`ai-help-btn-dl-${dl.id}`}
-                          >
-                            <Sparkles className="w-3 h-3 text-indigo-400 animate-pulse" />
-                            <span>Get AI Help</span>
-                          </button>
+                          {isCourseRep && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onGetAIHelp?.({
+                                  type: 'deadline',
+                                  id: dl.id,
+                                  name: dl.title,
+                                  details: dl.description || ''
+                                });
+                              }}
+                              className="text-[9.5px] font-mono font-extrabold uppercase tracking-wider text-indigo-400 hover:text-indigo-300 flex items-center gap-1 bg-indigo-500/10 hover:bg-indigo-505/20 px-2.5 py-1 rounded-lg border border-indigo-500/25 active:scale-95 transition-all cursor-pointer outline-none"
+                              id={`ai-help-btn-dl-${dl.id}`}
+                            >
+                              <Sparkles className="w-3 h-3 text-indigo-400 animate-pulse" />
+                              <span>Get AI Help</span>
+                            </button>
+                          )}
                         </div>
                       </div>
 
