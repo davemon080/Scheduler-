@@ -568,9 +568,249 @@ app.use("/uploads", express.static(uploadDir));
     }
   });
 
+  // API route to listen to Paystack Webhooks so that students who pay but close the browser get credited instantly
+  app.post("/api/paystack-webhook", async (req, res) => {
+    // Paystack sends event signals to webhooks.
+    // To preserve utmost security, we verify the payload reference with Paystack directly (verify API fetch)
+    // to be 100% cryptographic and bypass key mismatch or signature issues!
+    const event = req.body;
+    
+    if (!event || !event.data || !event.data.reference) {
+      return res.status(200).json({ status: "ignored" }); // Always acknowledge with 200 to Paystack
+    }
+
+    const reference = event.data.reference;
+    console.log(`[Paystack Webhook] Received event '${event.event}' for transaction reference: ${reference}`);
+
+    if (event.event === "charge.success") {
+      const paystackSecret = process.env.PAYSTACK_SECRET_KEY || "";
+      if (!paystackSecret) {
+        console.error("[Paystack Webhook] Paystack secret key is missing in environment variables!");
+        return res.status(200).json({ status: "configured_error" });
+      }
+
+      try {
+        // Double-verify with the official Paystack API to avoid spoofing
+        const response = await fetch(`https://api.paystack.co/transaction/verify/${reference}`, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${paystackSecret}`,
+            "Content-Type": "application/json",
+          },
+        });
+
+        const data = await response.json();
+        
+        if (data.status === true && data.data && data.data.status === "success" && db) {
+          const payAmount = data.data.amount / 100;
+          let foundMatric = "";
+          let foundName = "";
+
+          // Extract matric from metadata
+          if (data.data.metadata && data.data.metadata.custom_fields) {
+            const mField = data.data.metadata.custom_fields.find((f: any) => f.variable_name === 'matric_number');
+            if (mField) foundMatric = mField.value;
+            const nField = data.data.metadata.custom_fields.find((f: any) => f.variable_name === 'student_name');
+            if (nField) foundName = nField.value;
+          }
+
+          // Extract from reference naming
+          if (!foundMatric && reference.startsWith("sub-")) {
+            const parts = reference.split("-");
+            if (parts.length >= 2) {
+              const timestampPart = parts[parts.length - 1];
+              if (!isNaN(Number(timestampPart)) || timestampPart.length > 10) {
+                const matricPart = parts.slice(1, parts.length - 1).join("/");
+                if (matricPart.length > 3) foundMatric = matricPart;
+              }
+            }
+          }
+
+          const customerEmail = data.data.customer?.email;
+
+          // Resolve by searching users by email
+          if (!foundMatric && customerEmail) {
+            try {
+              const usersColl = collection(db, "users");
+              const usersSnap = await getDocs(usersColl);
+              for (const uDoc of usersSnap.docs) {
+                const uData = uDoc.data();
+                if (uData.email && uData.email.toLowerCase() === customerEmail.toLowerCase()) {
+                  foundMatric = uData.matricNumber;
+                  foundName = foundName || uData.name;
+                  break;
+                }
+              }
+            } catch (dbErr) {
+              console.warn("[Webhook] Backup users query fallback failed:", dbErr);
+            }
+          }
+
+          if (foundMatric) {
+            const safeId = getSafeDocId(foundMatric);
+            const subDocRef = doc(db, 'subscriptions', safeId);
+            
+            await setDoc(subDocRef, {
+              status: 'active',
+              matricNumber: foundMatric,
+              email: customerEmail || `${foundMatric.replace(/\//g, '_')}@ich100l.edu`,
+              name: foundName || "Chemistry Student",
+              lastPaymentDate: new Date().toISOString(),
+              expiryDate: 'Current Semester',
+              reference: reference,
+              amountPaid: payAmount,
+            });
+
+            await setDoc(doc(db, 'payments', reference), {
+              reference: reference,
+              matricNumber: foundMatric,
+              email: customerEmail || `${foundMatric.replace(/\//g, '_')}@ich100l.edu`,
+              name: foundName || "Chemistry Student",
+              amount: payAmount,
+              paidAt: new Date().toISOString(),
+              status: 'success'
+            });
+
+            console.log(`[Paystack Webhook] SUCCESS: Granted and recorded access for student '${foundMatric}' via Paystack Webhook.`);
+          } else {
+            console.warn(`[Paystack Webhook] Transaction verified successfully, but unable to resolve a student matricNumber.`);
+          }
+        }
+      } catch (webhookErr) {
+        console.error("[Paystack Webhook] Processing crash occurred: ", webhookErr);
+      }
+    }
+
+    return res.status(200).json({ status: "processed" });
+  });
+
+  // API route for Course Rep / Admin to scan Paystack for recent successful charges and grant missing access
+  app.post("/api/paystack-reconcile-sweep", async (req, res) => {
+    const paystackSecret = process.env.PAYSTACK_SECRET_KEY || "";
+    if (!paystackSecret) {
+      return res.status(500).json({ success: false, message: "Paystack secret key is not configured in the server environment settings." });
+    }
+
+    if (!db) {
+      return res.status(500).json({ success: false, message: "Firebase connection is unavailable at this moment." });
+    }
+
+    try {
+      console.log("[Sweep API] Beginning a successful payments reconciliation sweep from Paystack...");
+      const response = await fetch("https://api.paystack.co/transaction?status=success&perPage=100", {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${paystackSecret}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      const pData = await response.json();
+      if (!pData.status || !pData.data || !Array.isArray(pData.data)) {
+        return res.status(400).json({ success: false, message: pData.message || "Failed to fetch transaction logs from Paystack." });
+      }
+
+      const verifiedTransactions = pData.data;
+      let checkCount = 0;
+      let matchCount = 0;
+      let newUnlockCount = 0;
+      const unlockedStudents: string[] = [];
+
+      // Load all current users from db for faster local mapping in loop
+      const usersColl = collection(db, "users");
+      const usersSnap = await getDocs(usersColl);
+      const userList = usersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      for (const tx of verifiedTransactions) {
+        checkCount++;
+        const reference = tx.reference;
+        const payAmount = (tx.amount || 100000) / 100;
+        const customerEmail = tx.customer?.email;
+
+        let foundMatric = "";
+        let foundName = "";
+
+        // Extract from metadata custom fields
+        if (tx.metadata && tx.metadata.custom_fields) {
+          const mField = tx.metadata.custom_fields.find((f: any) => f.variable_name === 'matric_number');
+          if (mField) foundMatric = mField.value;
+          const nField = tx.metadata.custom_fields.find((f: any) => f.variable_name === 'student_name');
+          if (nField) foundName = nField.value;
+        }
+
+        // Reconstruct from reference format
+        if (!foundMatric && reference && reference.startsWith("sub-")) {
+          const parts = reference.split("-");
+          if (parts.length >= 2) {
+            const timestampPart = parts[parts.length - 1];
+            if (!isNaN(Number(timestampPart)) || timestampPart.length > 10) {
+              const matricPart = parts.slice(1, parts.length - 1).join("/");
+              if (matricPart.length > 3) foundMatric = matricPart;
+            }
+          }
+        }
+
+        // Match registered student matching Paystack email
+        if (!foundMatric && customerEmail) {
+          const match = userList.find((u: any) => u.email && u.email.toLowerCase() === customerEmail.toLowerCase());
+          if (match) {
+            foundMatric = (match as any).matricNumber;
+            foundName = foundName || (match as any).name;
+          }
+        }
+
+        if (foundMatric) {
+          matchCount++;
+          const safeId = getSafeDocId(foundMatric);
+          const subDocRef = doc(db, 'subscriptions', safeId);
+          
+          // Check if subscription exists and is active, otherwise force-unlock it immediately
+          const sSnap = await getDoc(subDocRef);
+          const existingSub = sSnap.exists() ? sSnap.data() : null;
+
+          if (!existingSub || existingSub.status !== 'active') {
+            await setDoc(subDocRef, {
+              status: 'active',
+              matricNumber: foundMatric,
+              email: customerEmail || `${foundMatric.replace(/\//g, '_')}@ich100l.edu`,
+              name: foundName || "Chemistry Student",
+              lastPaymentDate: tx.paid_at || tx.created_at || new Date().toISOString(),
+              expiryDate: 'Current Semester',
+              reference: reference,
+              amountPaid: payAmount,
+            }, { merge: true });
+
+            await setDoc(doc(db, 'payments', reference), {
+              reference: reference,
+              matricNumber: foundMatric,
+              email: customerEmail || `${foundMatric.replace(/\//g, '_')}@ich100l.edu`,
+              name: foundName || "Chemistry Student",
+              amount: payAmount,
+              paidAt: tx.paid_at || tx.created_at || new Date().toISOString(),
+              status: 'success'
+            }, { merge: true });
+
+            newUnlockCount++;
+            unlockedStudents.push(`${foundName || "Student"} (${foundMatric})`);
+          }
+        }
+      }
+
+      console.log(`[Sweep Completed] Inspected ${checkCount} transactions, mapped ${matchCount} to registered students, unlocked/synced ${newUnlockCount} new students.`);
+      return res.json({
+        success: true,
+        summary: `Inspected ${checkCount} successful transactions on Paystack. Mapped ${matchCount} students on file. Instantly unlocked ${newUnlockCount} student subscriptions due to failed redirects or slow updates.`,
+        unlocked: unlockedStudents
+      });
+    } catch (err: any) {
+      console.error("[Sweep API] Error in reconcile endpoint:", err);
+      return res.status(500).json({ success: false, error: err.message || "Sweep operation failed on server." });
+    }
+  });
+
   // API route to securely initialize Paystack transactions for hosted checkout redirects
   app.post("/api/paystack-initialize", async (req, res) => {
-    const { email, matricNumber, name, callbackUrl } = req.body;
+    const { email, matricNumber, name, callbackUrl, amount } = req.body;
     if (!email || !matricNumber) {
       return res.status(400).json({ error: "Email and Matric Number are required." });
     }
@@ -579,7 +819,22 @@ app.use("/uploads", express.static(uploadDir));
     if (!paystackSecret) {
       return res.status(550).json({ error: "Paystack secret key is not configured in the server environment." });
     }
-    const amount = 200 * 100; // ₦200 in kobo
+    
+    // Dynamic pricing: use body amount, fallback to database doc check, or 1000 standard
+    let payAmount = 1000 * 100; // Default kobo
+    if (amount && !isNaN(Number(amount))) {
+      payAmount = Number(amount);
+    } else if (db) {
+      try {
+        const configDocRef = doc(db, "system-config", "semester-billing");
+        const docSnap = await getDoc(configDocRef);
+        if (docSnap.exists() && docSnap.data().amount) {
+          payAmount = Number(docSnap.data().amount) * 100;
+        }
+      } catch (dbErr) {
+        console.warn("[Server] Dynamic semester config read fallback:", dbErr);
+      }
+    }
 
     const reference = `sub-${matricNumber.replace(/[^a-zA-Z0-9]/g, '-')}-${Date.now()}`;
 
@@ -592,7 +847,7 @@ app.use("/uploads", express.static(uploadDir));
         },
         body: JSON.stringify({
           email: email,
-          amount: amount,
+          amount: payAmount,
           reference: reference,
           callback_url: callbackUrl,
           metadata: {

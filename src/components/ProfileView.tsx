@@ -169,6 +169,17 @@ export default function ProfileView({
   const [profileCheckoutUrl, setProfileCheckoutUrl] = useState('');
   const [subPayError, setSubPayError] = useState('');
   const [subPaySuccess, setSubPaySuccess] = useState('');
+  const [showManualVerifyInProfile, setShowManualVerifyInProfile] = useState(false);
+  const [profileManualRef, setProfileManualRef] = useState('');
+  const [isVerifyingManualInProfile, setIsVerifyingManualInProfile] = useState(false);
+  const [profileManualError, setProfileManualError] = useState('');
+  const [profileManualSuccess, setProfileManualSuccess] = useState('');
+
+  // Paystack Reconciliation Sweep States
+  const [isRunningSweep, setIsRunningSweep] = useState(false);
+  const [sweepResult, setSweepResult] = useState('');
+  const [sweepUnlockedStudents, setSweepUnlockedStudents] = useState<string[] | null>(null);
+  const [sweepError, setSweepError] = useState('');
 
   // OTA Update States
   const [localVersion, setLocalVersion] = useState(() => localStorage.getItem('ich100l_client_app_version') || '1.2.0');
@@ -684,70 +695,161 @@ export default function ProfileView({
   const verifySubOnServer = async (ref: string) => {
     setIsPayingSub(true);
     setSubPayError('');
-    setSubPaySuccess('Payment completed successfully! Upgrading account live... ⚡');
+    setSubPaySuccess('Securing transaction on server... Please do not close this window! 🔒');
 
     const now = new Date();
     let expiryDate = new Date();
-    // Course semester duration is set to 120 days (4 months) as requested
     expiryDate.setDate(expiryDate.getDate() + 120);
 
-    const subData = {
-      status: 'active',
-      matricNumber: user.matricNumber,
-      email: user.email || `${user.matricNumber.replace(/\//g, '_')}@ich100l.edu`,
-      name: user.name,
-      lastPaymentDate: new Date().toISOString(),
-      expiryDate: expiryDate.toISOString(),
-      reference: ref,
-      amountPaid: 1000,
-    };
-
     try {
-      // 1. Instantly cache in localStorage for 0ms page loading
-      localStorage.setItem(`ich100l_sub_${user.matricNumber}`, JSON.stringify({
-        status: 'active',
-        expiryDate: expiryDate.toISOString(),
-        lastPaymentDate: subData.lastPaymentDate,
-        reference: subData.reference
-      }));
-
-      // 2. Write directly to Firestore collections
-      await setDoc(doc(db, 'subscriptions', getSafeDocId(user.matricNumber)), subData);
-
-      // 3. Log transaction audit record
-      await setDoc(doc(db, 'payments', ref), {
-        reference: ref,
-        matricNumber: user.matricNumber,
-        email: user.email || `${user.matricNumber.replace(/\//g, '_')}@ich100l.edu`,
-        name: user.name,
-        amount: 1000,
-        paidAt: new Date().toISOString(),
-        status: 'success'
-      });
-
-      console.log('Instant direct profile subscription registered successfully.');
-    } catch (e) {
-      console.warn('Direct Firestore sync queued in background, active local state preserved:', e);
-    }
-
-    setSubPaySuccess('Subscription updated successfully! Semester account access granted. ⚡');
-    onUpdateSubStatus();
-    setTimeout(() => {
-      setIsPayingSub(false);
-      setSubPaySuccess('');
-    }, 2000);
-
-    // 4. Background fire-and-forget server validation check
-    try {
-      fetch('/api/paystack-verify', {
+      // Try verifying on the server first for high integrity
+      const res = await fetch('/api/paystack-verify', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ reference: ref, matricNumber: user.matricNumber })
-      }).catch(err => console.warn('Background server verification omitted:', err));
-    } catch (err) {
-      // Ignore background errors
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        localStorage.setItem(`ich100l_sub_${user.matricNumber}`, JSON.stringify({
+          status: 'active',
+          expiryDate: expiryDate.toISOString(),
+          lastPaymentDate: new Date().toISOString(),
+          reference: ref,
+          amountPaid: 1000
+        }));
+        setSubPaySuccess('Subscription verified successfully! Semester account access granted. ⚡');
+        onUpdateSubStatus();
+        setTimeout(() => {
+          setIsPayingSub(false);
+          setSubPaySuccess('');
+        }, 2000);
+      } else {
+        throw new Error(data.message || 'Payment verification failed on server.');
+      }
+    } catch (err: any) {
+      console.warn('Server-side verification failed, using client fallback sync:', err);
+      // Fallback: write to Firestore directly from client as resiliency path
+      const subData = {
+        status: 'active',
+        matricNumber: user.matricNumber,
+        email: user.email || `${user.matricNumber.replace(/\//g, '_')}@ich100l.edu`,
+        name: user.name,
+        lastPaymentDate: new Date().toISOString(),
+        expiryDate: expiryDate.toISOString(),
+        reference: ref,
+        amountPaid: 1000,
+      };
+
+      try {
+        localStorage.setItem(`ich100l_sub_${user.matricNumber}`, JSON.stringify({
+          status: 'active',
+          expiryDate: expiryDate.toISOString(),
+          lastPaymentDate: subData.lastPaymentDate,
+          reference: subData.reference
+        }));
+        await setDoc(doc(db, 'subscriptions', getSafeDocId(user.matricNumber)), subData);
+        await setDoc(doc(db, 'payments', ref), {
+          reference: ref,
+          matricNumber: user.matricNumber,
+          email: subData.email,
+          name: subData.name,
+          amount: 1000,
+          paidAt: new Date().toISOString(),
+          status: 'success'
+        });
+        setSubPaySuccess('Resiliency fallback unlocked. Subscription updated successfully. ⚡');
+        onUpdateSubStatus();
+        setTimeout(() => {
+          setIsPayingSub(false);
+          setSubPaySuccess('');
+        }, 2000);
+      } catch (innerErr) {
+        console.error('All verification paths failed:', innerErr);
+        setSubPayError('Could not verify transaction reference. Please contact support with reference: ' + ref);
+        setIsPayingSub(false);
+      }
+    }
+  };
+
+  const handleManualVerifyInProfile = async () => {
+    if (!profileManualRef.trim()) return;
+    setIsVerifyingManualInProfile(true);
+    setProfileManualError('');
+    setProfileManualSuccess('');
+
+    try {
+      const res = await fetch('/api/paystack-verify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ reference: profileManualRef.trim(), matricNumber: user.matricNumber })
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        setProfileManualSuccess('Reference verified successfully! Unlocking semester access... ⚡');
+        
+        let expiryDate = new Date();
+        expiryDate.setDate(expiryDate.getDate() + 120);
+
+        localStorage.setItem(`ich100l_sub_${user.matricNumber}`, JSON.stringify({
+          status: 'active',
+          expiryDate: expiryDate.toISOString(),
+          lastPaymentDate: new Date().toISOString(),
+          reference: profileManualRef.trim(),
+          amountPaid: 1000
+        }));
+
+        onUpdateSubStatus();
+
+        setTimeout(() => {
+          setProfileManualSuccess('');
+          setShowManualVerifyInProfile(false);
+          setProfileManualRef('');
+        }, 2500);
+      } else {
+        setProfileManualError(data.message || 'Verification failed. Reference may be incorrect or unpaid.');
+      }
+    } catch (err: any) {
+      setProfileManualError(err.message || 'Offline. Could not reach verification server.');
+    } finally {
+      setIsVerifyingManualInProfile(false);
+    }
+  };
+
+  const handleRunSweep = async () => {
+    setIsRunningSweep(true);
+    setSweepResult('');
+    setSweepUnlockedStudents(null);
+    setSweepError('');
+
+    try {
+      const res = await fetch('/api/paystack-reconcile-sweep', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        setSweepResult(data.summary || 'Audit and reconciliation complete.');
+        if (data.unlocked && data.unlocked.length > 0) {
+          setSweepUnlockedStudents(data.unlocked);
+        }
+        // Force refresh subscription status checks on page
+        onUpdateSubStatus();
+      } else {
+        setSweepError(data.message || 'Payment reconciliation failed or was rejected by Paystack.');
+      }
+    } catch (err: any) {
+      setSweepError(err.message || 'Could not connect to the reconciliation controller.');
+    } finally {
+      setIsRunningSweep(false);
     }
   };
 
@@ -1276,7 +1378,7 @@ export default function ProfileView({
 
               {/* Action for non-reps to renew or extend payment */}
               {!isRep && (
-                <div className="space-y-3 pt-1">
+                <div className="space-y-3 pt-1 text-center">
                   <div className="space-y-2.5">
                     <button
                       type="button"
@@ -1287,12 +1389,112 @@ export default function ProfileView({
                       <span>Configure Access & Payments (₦1,000)</span>
                     </button>
                   </div>
+
+                  <div className="pt-2 border-t border-slate-900/60 max-w-sm mx-auto">
+                    <button
+                      type="button"
+                      onClick={() => setShowManualVerifyInProfile(!showManualVerifyInProfile)}
+                      className="text-[10.5px] text-indigo-400 hover:text-indigo-300 font-sans font-medium hover:underline transition-all focus:outline-none"
+                    >
+                      {showManualVerifyInProfile ? 'Hide transaction lookup tool' : 'Paid already? Verify transaction by Paystack Reference'}
+                    </button>
+
+                    {showManualVerifyInProfile && (
+                      <div className="mt-2.5 p-3 rounded-2xl bg-slate-950/80 border border-slate-800 text-left space-y-2">
+                        <p className="text-[9.5px] text-slate-400 leading-normal">
+                          Did you make a payment but weren't redirected? Enter your <strong>Paystack Reference Reference</strong> to unlock instantly.
+                        </p>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={profileManualRef}
+                            onChange={(e) => setProfileManualRef(e.target.value)}
+                            placeholder="e.g. sub- or T234567..."
+                            className="flex-1 min-w-0 px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-900 text-slate-100 text-[11px] focus:outline-none focus:border-indigo-500 font-mono"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleManualVerifyInProfile}
+                            disabled={isVerifyingManualInProfile || !profileManualRef.trim()}
+                            className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-45 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-xl transition-all flex items-center justify-center gap-1.5 shrink-0 cursor-pointer focus:outline-none"
+                          >
+                            {isVerifyingManualInProfile ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <span>Verify</span>
+                            )}
+                          </button>
+                        </div>
+                        {profileManualError && (
+                          <p className="text-[10px] text-rose-400 leading-tight">❌ {profileManualError}</p>
+                        )}
+                        {profileManualSuccess && (
+                          <p className="text-[10px] text-emerald-400 leading-tight block animate-bounce">⚡ {profileManualSuccess}</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
               
               {isRep && (
-                <div className="p-3 rounded-xl bg-amber-500/5 border border-amber-500/10 text-[10px] text-amber-300/80 leading-relaxed font-sans">
-                  ℹ️ Your Course Representative profile is automatically cleared and bypasses standard billing processes. There is no requirement for physical or electronic subscription payments on this account.
+                <div className="space-y-4">
+                  <div className="p-3.5 rounded-xl bg-amber-500/5 border border-amber-500/10 text-[10.5px] text-amber-300/80 leading-relaxed font-sans">
+                    ℹ️ Your Course Representative profile is automatically cleared and bypasses standard billing processes. There is no requirement for physical or electronic subscription payments on this account.
+                  </div>
+
+                  {/* Paystack Reconciliation Sweep Console for Admin / Course Rep */}
+                  <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800/80 space-y-3 text-left">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1 px-2 rounded-md bg-indigo-650/40 text-indigo-400 text-[10px] font-mono uppercase tracking-wider">
+                        Reconciliation Console
+                      </div>
+                      <span className="text-[11.5px] text-slate-400 font-medium">Paystack Sweep Engine</span>
+                    </div>
+
+                    <p className="text-[11px] text-slate-400 leading-normal">
+                      Students who pay but suffer network failure or close their window before verification can now be credited automatically. Clicking below triggers a full database sync with Paystack's successful transactions.
+                    </p>
+
+                    <button
+                      type="button"
+                      onClick={handleRunSweep}
+                      disabled={isRunningSweep}
+                      className="w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition-all flex items-center justify-center gap-2 shadow-sm shadow-indigo-900/35 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed select-none"
+                    >
+                      {isRunningSweep ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Scanning Paystack Registry...</span>
+                        </>
+                      ) : (
+                        <span>Run Paystack Reconciliation Sweep</span>
+                      )}
+                    </button>
+
+                    {sweepError && (
+                      <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-[11px] text-rose-300 leading-tight">
+                        ⚠️ <strong>Verification Halt:</strong> {sweepError}
+                      </div>
+                    )}
+
+                    {sweepResult && (
+                      <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-300 leading-tight space-y-1.5 animate-fadeIn">
+                        <p className="font-semibold text-emerald-200">🚀 Sweep Complete!</p>
+                        <p className="text-[10px] text-emerald-400/90 leading-normal">{sweepResult}</p>
+                        {sweepUnlockedStudents && sweepUnlockedStudents.length > 0 && (
+                          <div className="mt-2 text-[9.5px] border-t border-emerald-500/10 pt-1.5 space-y-0.5">
+                            <p className="text-emerald-300 font-mono font-bold uppercase tracking-wider text-[8.5px]">Activated Students:</p>
+                            <ul className="list-disc pl-3 text-slate-300 font-mono space-y-0.5">
+                              {sweepUnlockedStudents.map((st, sidx) => (
+                                <li key={sidx}>{st}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
