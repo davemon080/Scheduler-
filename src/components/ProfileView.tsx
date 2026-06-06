@@ -716,7 +716,7 @@ export default function ProfileView({
       try {
         data = JSON.parse(text);
       } catch (parseError) {
-        throw new Error('Our connection is busy or returned an unexpected format. Retrying with direct client-side resiliency sync...');
+        throw new Error('Our connection is temporarily busy or returned an unexpected format. Please try again in 10 seconds.');
       }
 
       if (data.success) {
@@ -734,57 +734,12 @@ export default function ProfileView({
           setSubPaySuccess('');
         }, 2000);
       } else {
-        const blockErr = new Error(data.message || 'Payment verification failed on server.');
-        (blockErr as any).isDefinitive = true;
-        throw blockErr;
+        throw new Error(data.message || 'Payment verification failed on server.');
       }
     } catch (err: any) {
-      if (err.isDefinitive) {
-        setSubPayError(err.message);
-        setIsPayingSub(false);
-        return;
-      }
-      console.warn('Server-side verification failed, using client fallback sync:', err);
-      // Fallback: write to Firestore directly from client as resiliency path
-      const subData = {
-        status: 'active',
-        matricNumber: user.matricNumber,
-        email: user.email || `${user.matricNumber.replace(/\//g, '_')}@ich100l.edu`,
-        name: user.name,
-        lastPaymentDate: new Date().toISOString(),
-        expiryDate: expiryDate.toISOString(),
-        reference: ref,
-        amountPaid: 1000,
-      };
-
-      try {
-        localStorage.setItem(`ich100l_sub_${user.matricNumber}`, JSON.stringify({
-          status: 'active',
-          expiryDate: expiryDate.toISOString(),
-          lastPaymentDate: subData.lastPaymentDate,
-          reference: subData.reference
-        }));
-        await setDoc(doc(db, 'subscriptions', getSafeDocId(user.matricNumber)), subData);
-        await setDoc(doc(db, 'payments', ref), {
-          reference: ref,
-          matricNumber: user.matricNumber,
-          email: subData.email,
-          name: subData.name,
-          amount: 1000,
-          paidAt: new Date().toISOString(),
-          status: 'success'
-        });
-        setSubPaySuccess('Resiliency fallback unlocked. Subscription updated successfully. ⚡');
-        onUpdateSubStatus();
-        setTimeout(() => {
-          setIsPayingSub(false);
-          setSubPaySuccess('');
-        }, 2000);
-      } catch (innerErr) {
-        console.error('All verification paths failed:', innerErr);
-        setSubPayError('Could not verify transaction reference. Please contact support with reference: ' + ref);
-        setIsPayingSub(false);
-      }
+      console.warn('Server-side verification failed:', err);
+      setSubPayError(err.message || 'Could not verify transaction reference. Please check your internet connection or copy your reference code to a Course Rep to activate.');
+      setIsPayingSub(false);
     }
   };
 

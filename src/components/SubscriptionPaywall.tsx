@@ -86,7 +86,7 @@ export default function SubscriptionPaywall({
       try {
         data = JSON.parse(text);
       } catch (parseError) {
-        throw new Error('Our connection is busy or returned an unexpected format. Retrying with clinical local fallback check...');
+        throw new Error('Our connection is temporarily busy or returned an unexpected format. Please try again in 10 seconds.');
       }
 
       if (data.success) {
@@ -102,54 +102,11 @@ export default function SubscriptionPaywall({
           onSuccessVerification();
         }, 1200);
       } else {
-        const blockErr = new Error(data.message || 'Payment verification failed on server.');
-        (blockErr as any).isDefinitive = true;
-        throw blockErr;
+        throw new Error(data.message || 'Payment verification failed on server.');
       }
     } catch (err: any) {
-      if (err.isDefinitive) {
-        setErrorMessage(err.message);
-        setIsProcessing(false);
-        return;
-      }
-      console.warn('Server-side verification failed or slow, using high-resiliency client sync fallback:', err);
-      // Fallback: write to Firestore directly from client so students are NEVER stranded
-      const subData = {
-        status: 'active',
-        matricNumber: user.matricNumber,
-        email: user.email || `${user.matricNumber.replace(/\//g, '_')}@ich100l.edu`,
-        name: user.name,
-        lastPaymentDate: new Date().toISOString(),
-        expiryDate: 'Current Semester',
-        reference: ref,
-        amountPaid: payAmount,
-      };
-
-      try {
-        localStorage.setItem(`ich100l_sub_${user.matricNumber}`, JSON.stringify({
-          status: 'active',
-          expiryDate: 'Current Semester',
-          lastPaymentDate: subData.lastPaymentDate,
-          reference: subData.reference
-        }));
-        await setDoc(doc(db, 'subscriptions', getSafeDocId(user.matricNumber)), subData);
-        await setDoc(doc(db, 'payments', ref), {
-          reference: ref,
-          matricNumber: user.matricNumber,
-          email: subData.email,
-          name: subData.name,
-          amount: payAmount,
-          paidAt: new Date().toISOString(),
-          status: 'success'
-        });
-        setSuccessMessage('Resiliency fallback unlocked. Semester account access granted. ⚡');
-        setTimeout(() => {
-          onSuccessVerification();
-        }, 1200);
-      } catch (innerErr) {
-        console.error('All-channel verification failed:', innerErr);
-        setErrorMessage('Could not verify transaction reference. Please contact a Course Admin with your reference: ' + ref);
-      }
+      console.warn('Server-side verification failed:', err);
+      setErrorMessage(err.message || 'Could not verify transaction reference. Please check your internet connection or copy your reference code to a Course Rep to activate.');
     } finally {
       setIsProcessing(false);
     }
