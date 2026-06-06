@@ -5,7 +5,7 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Megaphone, Search, ShieldAlert, Pin, Calendar, User, Trash2, Tag, Volume2, Eye, X, Image, ExternalLink } from 'lucide-react';
+import { Megaphone, Search, ShieldAlert, Pin, Calendar, User, Trash2, Tag, Volume2, Eye, X, Image, ExternalLink, ChevronDown, SlidersHorizontal } from 'lucide-react';
 import { Announcement } from '../types';
 import GlassCard from './GlassCard';
 import ImageViewer from './ImageViewer';
@@ -26,23 +26,128 @@ export default function Announcements({
   const [closedPreviews, setClosedPreviews] = useState<Record<string, boolean>>({});
   const [announcementToDelete, setAnnouncementToDelete] = useState<Announcement | null>(null);
 
+  // Custom smart date-based and priority filter states
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [activeFilter, setActiveFilter] = useState<string>('all');
+  const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
+
+  // Helper: get today's date in YYYY-MM-DD
+  const getTodayDateStr = () => {
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, '0');
+    const d = String(today.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
+  // Helper: format YYYY-MM-DD to "Jun 5"
+  const formatToShortDate = (dateStr: string) => {
+    if (!dateStr) return '';
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      const dateObj = new Date(year, month, day);
+      if (!isNaN(dateObj.getTime())) {
+        return dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      }
+    }
+    try {
+      const d = new Date(dateStr);
+      if (!isNaN(d.getTime())) {
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      }
+    } catch (e) {}
+    return dateStr;
+  };
+
+  // Helper: format YYYY-MM-DD to "Today, Jun 5, 2026" or "Yesterday, Jun 4, 2026" or "Jun 3, 2026"
+  const getRelativeDateGroupLabel = (dateStr: string) => {
+    if (!dateStr) return '';
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      const targetDate = new Date(year, month, day);
+      
+      const today = new Date();
+      const yesterday = new Date();
+      yesterday.setDate(today.getDate() - 1);
+
+      const isSameDay = (d1: Date, d2: Date) =>
+        d1.getFullYear() === d2.getFullYear() &&
+        d1.getMonth() === d2.getMonth() &&
+        d1.getDate() === d2.getDate();
+
+      const formattedDatePart = targetDate.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      });
+
+      if (isSameDay(targetDate, today)) {
+        return `Today, ${formattedDatePart}`;
+      } else if (isSameDay(targetDate, yesterday)) {
+        return `Yesterday, ${formattedDatePart}`;
+      } else {
+        return formattedDatePart;
+      }
+    }
+    return dateStr;
+  };
+
+  // Compute all available dates dynamically from loaded broadcasts for the timeline
+  const uniqueDates = Array.from(new Set(announcements.map((ann) => ann.date)))
+    .filter(Boolean)
+    .sort((a, b) => b.localeCompare(a));
+
+  // Multi-tier filter matching
   const filteredAnnouncements = announcements.filter((ann) => {
+    // 1. Keyword search (title / message / author)
     const q = searchQuery.toLowerCase();
-    return (
+    const matchesSearch =
       ann.title.toLowerCase().includes(q) ||
       ann.content.toLowerCase().includes(q) ||
-      ann.author.toLowerCase().includes(q)
-    );
+      ann.author.toLowerCase().includes(q);
+
+    if (!matchesSearch) return false;
+
+    // 2. Timeline Selected Date
+    if (selectedDate && ann.date !== selectedDate) {
+      return false;
+    }
+
+    // 3. Dropdown Menu Filter
+    if (activeFilter === 'today') {
+      if (ann.date !== getTodayDateStr()) return false;
+    } else if (activeFilter !== 'all') {
+      if (ann.priority !== activeFilter) return false;
+    }
+
+    return true;
   });
 
+  // Sort broadcasts newest first and map them by date
   const sortedAnnouncements = [...filteredAnnouncements].sort((a, b) => {
-    // If dates are different, sort by date descending (newest first)
     if (a.date !== b.date) {
       return b.date.localeCompare(a.date);
     }
-    // Else sort by ID descending (which embeds creation timestamps)
     return b.id.localeCompare(a.id);
   });
+
+  // Grouped collection mapping
+  const groups: Record<string, Announcement[]> = {};
+  sortedAnnouncements.forEach((ann) => {
+    const k = ann.date || 'Unspecified';
+    if (!groups[k]) {
+      groups[k] = [];
+    }
+    groups[k].push(ann);
+  });
+
+  const groupKeys = Object.keys(groups).sort((a, b) => b.localeCompare(a));
 
   const getPriorityStyles = (priority: string) => {
     switch (priority) {
@@ -82,20 +187,122 @@ export default function Announcements({
         <Volume2 className="w-5 h-5 text-indigo-400 shrink-0" />
       </div>
 
-      {/* Search Bar Input */}
-      <div className="relative">
-        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search announcements by keyword, lecturer..."
-          className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-slate-100 text-sm focus:outline-none focus:border-indigo-500 transition-colors font-sans"
-        />
+      {/* Search Bar Input & Filter Option Trigger */}
+      <div className="flex gap-2.5 relative z-20">
+        <div className="relative flex-1">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search announcements by keyword, lecturer..."
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-slate-100 text-sm focus:outline-none focus:border-indigo-500 transition-colors font-sans"
+          />
+        </div>
+
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setIsFilterDropdownOpen(!isFilterDropdownOpen)}
+            className={`px-3.5 py-2.5 rounded-xl border flex items-center gap-2 text-xs font-semibold cursor-pointer select-none transition-all active:scale-95 duration-200 ${
+              activeFilter !== 'all'
+                ? 'bg-indigo-600 border-indigo-500/80 text-white shadow-lg shadow-indigo-500/20'
+                : 'bg-slate-950/60 border-slate-800 text-slate-300 hover:text-slate-100 hover:border-slate-700'
+            }`}
+          >
+            <SlidersHorizontal className="w-4 h-4 text-indigo-400" />
+            <span>
+              {activeFilter === 'all'
+                ? 'Filter'
+                : activeFilter === 'today'
+                ? 'Today'
+                : `${activeFilter.charAt(0).toUpperCase() + activeFilter.slice(1)}`}
+            </span>
+            <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+          </button>
+          
+          <AnimatePresence>
+            {isFilterDropdownOpen && (
+              <>
+                <div 
+                  className="fixed inset-0 z-30" 
+                  onClick={() => setIsFilterDropdownOpen(false)} 
+                />
+                <motion.div
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute right-0 mt-2 w-48 rounded-2xl border border-slate-800 bg-[#0f172a]/95 backdrop-blur-md shadow-2xl p-1.5 z-40 space-y-0.5"
+                >
+                  {[
+                    { id: 'all', label: 'All Broadcasts' },
+                    { id: 'today', label: 'Today Only' },
+                    { id: 'high', label: 'High Priority' },
+                    { id: 'medium', label: 'Medium Priority' },
+                    { id: 'info', label: 'Info Priority' }
+                  ].map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => {
+                        setActiveFilter(opt.id);
+                        setIsFilterDropdownOpen(false);
+                      }}
+                      className={`w-full text-left px-3 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer select-none ${
+                        activeFilter === opt.id
+                          ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-505/30'
+                          : 'text-slate-400 hover:bg-slate-900/40 hover:text-slate-200 border border-transparent'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
 
+      {/* Horizontal Scrollable Date Selector */}
+      {uniqueDates.length > 0 && (
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1 -mx-4 px-4 scroll-smooth select-none">
+          <button
+            type="button"
+            onClick={() => setSelectedDate(null)}
+            className={`px-3.5 py-1.5 rounded-full text-xs font-mono font-bold uppercase tracking-wider shrink-0 transition-all duration-200 cursor-pointer outline-none border ${
+              selectedDate === null
+                ? 'bg-indigo-600/25 border-indigo-500/80 text-indigo-300 shadow-[0_0_12px_rgba(99,102,241,0.25)]'
+                : 'bg-slate-950/40 border-slate-900 text-slate-400 hover:text-slate-200 hover:border-slate-800'
+            }`}
+          >
+            All Dates
+          </button>
+
+          {uniqueDates.map((dateStr) => {
+            const isSelected = selectedDate === dateStr;
+            const shortLabel = formatToShortDate(dateStr);
+            return (
+              <button
+                key={dateStr}
+                type="button"
+                onClick={() => setSelectedDate(isSelected ? null : dateStr)}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-mono font-bold uppercase tracking-wider shrink-0 transition-all duration-200 cursor-pointer outline-none border ${
+                  isSelected
+                    ? 'bg-indigo-600/25 border-indigo-500/80 text-indigo-300 shadow-[0_0_12px_rgba(99,102,241,0.25)]'
+                    : 'bg-slate-950/40 border-slate-900 text-slate-400 hover:text-slate-200 hover:border-slate-800'
+                }`}
+              >
+                {shortLabel}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Bulletin Grid */}
-      <div className="space-y-4">
+      <div className="space-y-6">
         <AnimatePresence mode="popLayout">
           {filteredAnnouncements.length === 0 ? (
             <motion.div
@@ -106,55 +313,86 @@ export default function Announcements({
             >
               <GlassCard className="py-10 border-dashed border-slate-800 text-slate-400 max-w-md mx-auto flex flex-col items-center">
                 <Megaphone className="w-10 h-10 text-slate-600 mb-3 animate-pulse" />
-                <h4 className="text-sm font-display font-bold text-slate-300">No broadcasts found</h4>
-                <p className="text-xs text-slate-500 mt-1 max-w-xs font-sans">
-                  We couldn't find any announcements matching "{searchQuery}". Try revising your keyword search.
+                <h4 className="text-sm font-display font-bold text-slate-300">
+                  {selectedDate ? 'No broadcasts' : 'No broadcasts found'}
+                </h4>
+                <p className="text-xs text-slate-500 mt-1 max-w-xs font-sans text-center">
+                  {selectedDate 
+                    ? 'No broadcasts available for this date.' 
+                    : searchQuery 
+                    ? `We couldn't find any announcements matching "${searchQuery}". Try revising your keyword search.`
+                    : 'No announcements have been broadcasted yet.'}
                 </p>
               </GlassCard>
             </motion.div>
           ) : (
-            sortedAnnouncements.map((ann, idx) => {
-              const styles = getPriorityStyles(ann.priority);
-              
-              return (
-                <motion.div
-                  key={ann.id}
-                  initial={{ opacity: 0, y: 15 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ duration: 0.3, delay: idx * 0.05 }}
-                >
-                  <GlassCard
-                    className={`relative overflow-hidden transition-all duration-300 border ${styles.glow}`}
-                  >
-                    {/* Top priority banner strips */}
-                    {ann.priority === 'high' && (
-                      <div className="absolute top-0 left-0 right-0 h-[3px] bg-rose-500" />
-                    )}
+            (() => {
+              let globalIndex = 0;
+              return groupKeys.map((dateStr) => {
+                const groupAnnouncements = groups[dateStr];
+                const relativeLabel = getRelativeDateGroupLabel(dateStr);
+                const countLabel = groupAnnouncements.length === 1 
+                  ? '1 Broadcast' 
+                  : `${groupAnnouncements.length} Broadcasts`;
+
+                return (
+                  <div key={dateStr} className="space-y-3 pt-1">
+                    <div className="flex items-center justify-between px-1">
+                      <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-indigo-400">
+                        {relativeLabel}
+                      </h3>
+                      <span className="text-[10px] font-mono font-bold text-slate-400 bg-slate-950/60 border border-slate-900 px-2 py-0.5 rounded-md select-none shrink-0">
+                        {countLabel}
+                      </span>
+                    </div>
+                    {/* Visual Section Divider Line */}
+                    <div className="h-[1px] bg-gradient-to-r from-indigo-500/10 via-slate-800/80 to-indigo-500/10 mb-4 opacity-50" />
 
                     <div className="space-y-4">
-                      {/* Announcement Upper line */}
-                      <div className="flex items-center justify-between gap-2.5">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded-full border border-opacity-40 select-none ${styles.badge}`}
+                      {groupAnnouncements.map((ann) => {
+                        const currentIdx = globalIndex++;
+                        const styles = getPriorityStyles(ann.priority);
+                        
+                        return (
+                          <motion.div
+                            key={ann.id}
+                            initial={{ opacity: 0, y: 15 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            transition={{ duration: 0.25, delay: currentIdx * 0.04 }}
                           >
-                            {ann.priority} Priority
-                          </span>
-                          {ann.priority === 'high' && (
-                            <span className="flex items-center gap-0.5 text-[10px] text-rose-400 font-mono animate-pulse font-semibold">
-                              <Pin className="w-3 h-3 text-rose-400 rotate-45 shrink-0" />
-                              <span>Pinned</span>
-                            </span>
-                          )}
-                        </div>
+                            <GlassCard
+                              className={`relative overflow-hidden transition-all duration-300 border ${styles.glow}`}
+                            >
+                              {/* Top priority banner strips */}
+                              {ann.priority === 'high' && (
+                                <div className="absolute top-0 left-0 right-0 h-[3px] bg-rose-500" />
+                              )}
 
-                        {/* Date indicator */}
-                        <div className="flex items-center gap-1 text-[10px] text-slate-500 font-mono">
-                          <Calendar className="w-3.5 h-3.5 shrink-0" />
-                          <span>{ann.date}</span>
-                        </div>
-                      </div>
+                              <div className="space-y-4">
+                                {/* Announcement Upper line */}
+                                <div className="flex items-center justify-between gap-2.5">
+                                  <div className="flex items-center gap-2">
+                                    <span
+                                      className={`text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded-full border border-opacity-40 select-none ${styles.badge}`}
+                                    >
+                                      {ann.priority} Priority
+                                    </span>
+                                    {ann.priority === 'high' && (
+                                      <span className="flex items-center gap-0.5 text-[10px] text-rose-400 font-mono animate-pulse font-semibold">
+                                        <Pin className="w-3 h-3 text-rose-400 rotate-45 shrink-0" />
+                                        <span>Pinned</span>
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* Date indicator */}
+                                  <div className="flex items-center gap-1 text-[10px] text-slate-500 font-mono">
+                                    <Calendar className="w-3.5 h-3.5 shrink-0" />
+                                    <span>{ann.date}</span>
+                                  </div>
+                                </div>
+
 
                       {/* Header Title */}
                       <h3 className="text-lg font-display font-bold text-slate-100 leading-tight">
@@ -280,8 +518,13 @@ export default function Announcements({
                   </GlassCard>
                 </motion.div>
               );
-            })
-          )}
+            })}
+          </div>
+        </div>
+      );
+    });
+  })()
+)}
         </AnimatePresence>
       </div>
 
