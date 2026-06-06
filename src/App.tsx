@@ -35,6 +35,7 @@ import ModulesView from './components/ModulesView';
 import CalendarView from './components/CalendarView';
 import FeedbackPage from './components/FeedbackPage';
 import DateScheduleView from './components/DateScheduleView';
+import AIDashboardPanel from './components/AIDashboardPanel';
 
 function getMondayOfCurrentWeek(): string {
   const now = new Date();
@@ -1579,6 +1580,16 @@ export default function App() {
 
   // UI state managers
   const [activeTab, setActiveTab] = useState<any>('schedule');
+  const [isAIPanelOpen, setIsAIPanelOpen] = useState(false);
+  const [aiPanelSource, setAiPanelSource] = useState<{ type: 'deadline' | 'pdf' | 'custom'; id?: string; name: string; details?: string } | null>(null);
+  const [hasAutoOpenedAI, setHasAutoOpenedAI] = useState(false);
+
+  useEffect(() => {
+    if (currentUser?.isCourseRep && !hasAutoOpenedAI) {
+      setIsAIPanelOpen(true);
+      setHasAutoOpenedAI(true);
+    }
+  }, [currentUser, hasAutoOpenedAI]);
 
   const unseenAnnouncementsCount = useMemo(() => {
     if (!currentUser) return 0;
@@ -2086,6 +2097,10 @@ export default function App() {
             userMatric={currentUser?.matricNumber || ''}
             matchedDepartment={matchedDepartment}
             departments={departments}
+            onGetAIHelp={(source) => {
+              setAiPanelSource(source);
+              setIsAIPanelOpen(true);
+            }}
           />
         );
       case 'schedule':
@@ -2140,6 +2155,10 @@ export default function App() {
             currentUserMatric={currentUser?.matricNumber || ''}
             onToggleComplete={handleToggleDeadline}
             onDeleteDeadline={handleDeleteDeadline}
+            onGetAIHelp={(source) => {
+              setAiPanelSource(source);
+              setIsAIPanelOpen(true);
+            }}
           />
         );
       case 'announcements':
@@ -2796,6 +2815,18 @@ export default function App() {
         isCourseRep={isCourseRep}
         deadlinesBadge={visiblePendingDeadlinesCount}
         broadcastsBadge={unseenAnnouncementsCount}
+      />
+
+      {/* Modern, dark, elegant AI Help Dashboard Panel */}
+      <AIDashboardPanel
+        isOpen={isAIPanelOpen}
+        onClose={() => {
+          setIsAIPanelOpen(false);
+          setAiPanelSource(null);
+        }}
+        initialSource={aiPanelSource}
+        deadlines={visibleDeadlines}
+        isCourseRep={isCourseRep}
       />
     </div>
   );

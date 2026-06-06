@@ -5,7 +5,7 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Clock, Calendar, CheckCircle2, Circle, AlertTriangle, CheckSquare, Square, Trash2, CalendarCheck, HelpCircle, Eye, Image, X } from 'lucide-react';
+import { Clock, Calendar, CheckCircle2, Circle, AlertTriangle, CheckSquare, Square, Trash2, CalendarCheck, HelpCircle, Eye, Image, X, Sparkles } from 'lucide-react';
 import { Deadline } from '../types';
 import GlassCard from './GlassCard';
 import ImageViewer from './ImageViewer';
@@ -16,6 +16,7 @@ interface DeadlinesProps {
   currentUserMatric: string;
   onToggleComplete: (id: string) => void;
   onDeleteDeadline: (id: string) => void;
+  onGetAIHelp?: (source: { type: 'deadline'; id: string; name: string; details?: string }) => void;
 }
 
 export default function Deadlines({
@@ -23,7 +24,8 @@ export default function Deadlines({
   isCourseRep,
   currentUserMatric,
   onToggleComplete,
-  onDeleteDeadline
+  onDeleteDeadline,
+  onGetAIHelp
 }: DeadlinesProps) {
   const [filter, setFilter] = useState<'all' | 'pending' | 'completed'>('pending');
   const [activeImageSet, setActiveImageSet] = useState<{ urls: string[]; index: number; title: string } | null>(null);
@@ -297,9 +299,29 @@ export default function Deadlines({
                         })()}
 
                         {/* Due date picker calendar label */}
-                        <div className="flex items-center gap-1.5 pt-2 text-[11px] text-slate-400 font-sans">
-                          <Calendar className="w-3.5 h-3.5 text-indigo-400/80" />
-                          <span>Deadline: <strong className="text-slate-300 font-mono">{dl.dueDate}</strong></span>
+                        <div className="flex items-center justify-between gap-1.5 pt-2 flex-wrap">
+                          <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-sans">
+                            <Calendar className="w-3.5 h-3.5 text-indigo-400/80" />
+                            <span>Deadline: <strong className="text-slate-300 font-mono">{dl.dueDate}</strong></span>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onGetAIHelp?.({
+                                type: 'deadline',
+                                id: dl.id,
+                                name: dl.title,
+                                details: dl.description || ''
+                              });
+                            }}
+                            className="text-[9.5px] font-mono font-extrabold uppercase tracking-wider text-indigo-400 hover:text-indigo-300 flex items-center gap-1 bg-indigo-500/10 hover:bg-indigo-505/20 px-2.5 py-1 rounded-lg border border-indigo-500/25 active:scale-95 transition-all cursor-pointer outline-none"
+                            id={`ai-help-btn-dl-${dl.id}`}
+                          >
+                            <Sparkles className="w-3 h-3 text-indigo-400 animate-pulse" />
+                            <span>Get AI Help</span>
+                          </button>
                         </div>
                       </div>
 

@@ -72,6 +72,7 @@ interface ModulesViewProps {
   userMatric: string;
   matchedDepartment?: any;
   departments?: any[];
+  onGetAIHelp?: (source: { type: 'pdf'; id: string; name: string; details?: string }) => void;
 }
 
 // Automatically convert common file hosting sharing links (like Google Drive, Dropbox) to direct raw PDF download endpoints
@@ -153,7 +154,8 @@ export default function ModulesView({
   isCourseRep,
   userMatric,
   matchedDepartment,
-  departments = []
+  departments = [],
+  onGetAIHelp
 }: ModulesViewProps) {
   // Realtime lists
   const [courses, setCourses] = useState<Course[]>([]);
@@ -707,12 +709,30 @@ export default function ModulesView({
                         </button>
                       )}
                       
+                      {/* GET AI HELP FOR SYLLABUS PDF */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onGetAIHelp?.({
+                            type: 'pdf',
+                            id: mod.id,
+                            name: mod.title,
+                            details: mod.description || ''
+                          });
+                        }}
+                        className="p-1.5 bg-indigo-500/10 hover:bg-indigo-500/25 border border-indigo-500/20 rounded-lg text-indigo-400 hover:text-indigo-350 transition-all flex items-center justify-center cursor-pointer outline-none"
+                        title="Get AI Help on PDF"
+                        id={`ai-help-btn-pdf-${mod.id}`}
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
+                      </button>
+
                       {/* FILE VIEWER LINK (EXTERNAL WEB VIEWER, NEW TAB) */}
                       <a
                         href={getPDFViewUrl(mod.pdfUrl)}
                         target="_blank"
                         rel="noreferrer"
-                        className="p-1.5 bg-indigo-500/10 hover:bg-indigo-500/25 border border-indigo-500/20 rounded-lg text-indigo-400 transition-all flex items-center justify-center cursor-pointer pointer-events-auto outline-none"
+                        className="p-1.5 bg-indigo-505/10 hover:bg-indigo-500/25 border border-indigo-500/20 rounded-lg text-indigo-400 transition-all flex items-center justify-center cursor-pointer pointer-events-auto outline-none"
                         title="View PDF"
                         id={`view-pdf-btn-${mod.id}`}
                       >
