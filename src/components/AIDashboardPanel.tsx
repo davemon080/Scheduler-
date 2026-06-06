@@ -602,7 +602,7 @@ export default function AIDashboardPanel({
 
           {/* MAIN ARENA WORKSPACE CONTAINER */}
           <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative z-20">
-            {!isCourseRep ? (
+            {true ? (
               /* NON-COURSE REPS ARE RESPECTED: COMING SOON VIEWPORT */
               <div className="flex-1 bg-[#050811] flex flex-col justify-center items-center p-8 text-center select-none relative font-sans">
                 <div className="absolute top-1/3 w-72 h-72 bg-indigo-600/10 rounded-full filter blur-[90px]" />
@@ -1292,7 +1292,7 @@ export default function AIDashboardPanel({
         </div>
 
         {/* Scrollable Centerpiece Choice Portal */}
-        {!isCourseRep ? (
+        {true ? (
           <div className="flex-1 flex flex-col items-center justify-center p-8 bg-[#050812] text-center space-y-6 select-none relative">
             <div className="absolute top-[20%] left-[20%] w-[60%] h-[60%] bg-indigo-500/5 rounded-full filter blur-[120px] pointer-events-none" />
             

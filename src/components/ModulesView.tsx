@@ -710,7 +710,7 @@ export default function ModulesView({
                       )}
                       
                       {/* GET AI HELP FOR SYLLABUS PDF */}
-                      {isCourseRep && (
+                      {false && (
                         <button
                           type="button"
                           onClick={() => {

@@ -305,7 +305,7 @@ export default function Deadlines({
                             <span>Deadline: <strong className="text-slate-300 font-mono">{dl.dueDate}</strong></span>
                           </div>
 
-                          {isCourseRep && (
+                          {false && (
                             <button
                               type="button"
                               onClick={(e) => {
