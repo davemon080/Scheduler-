@@ -481,12 +481,12 @@ app.use("/uploads", express.static(uploadDir));
         
         if (data.data.metadata && data.data.metadata.custom_fields) {
           const mField = data.data.metadata.custom_fields.find((f: any) => f.variable_name === 'matric_number');
-          if (mField) {
-            foundMatric = foundMatric || mField.value;
+          if (mField && mField.value) {
+            foundMatric = foundMatric || String(mField.value);
           }
           const nField = data.data.metadata.custom_fields.find((f: any) => f.variable_name === 'student_name');
-          if (nField) {
-            foundName = foundName || mField.value || nField.value;
+          if (nField && nField.value) {
+            foundName = foundName || String(nField.value);
           }
         }
         

@@ -300,21 +300,22 @@ export default function App() {
           setAppReleaseNotes(data.releaseNotes);
         }
 
-        const storedLocalVer = localStorage.getItem('ich100l_client_app_version');
+        let storedLocalVer = localStorage.getItem('ich100l_client_app_version');
         if (!storedLocalVer) {
           // New device browser context or fresh login, they are already running the latest deployed code
           localStorage.setItem('ich100l_client_app_version', serverVer);
+          storedLocalVer = serverVer;
           setAppLocalVersion(serverVer);
         } else {
           setAppLocalVersion(storedLocalVer);
-          // Retrieve previously dismissed version from localStorage
-          const dismissedVer = localStorage.getItem('ich100l_dismissed_ota_version') || '';
+        }
 
-          if (storedLocalVer !== serverVer && dismissedVer !== serverVer) {
-            setShowOtaPopup(true);
-          } else {
-            setShowOtaPopup(false);
-          }
+        const dismissedVer = localStorage.getItem('ich100l_dismissed_ota_version') || '';
+
+        if (currentUser && storedLocalVer !== serverVer && dismissedVer !== serverVer) {
+          setShowOtaPopup(true);
+        } else {
+          setShowOtaPopup(false);
         }
       }
     }, (error) => {
@@ -2619,7 +2620,7 @@ export default function App() {
               </div>
 
               <div className="flex flex-col gap-2 pt-1">
-                <button
+                 <button
                   type="button"
                   onClick={() => {
                     localStorage.setItem('ich100l_client_app_version', appServerVersion);
@@ -2628,7 +2629,7 @@ export default function App() {
                   }}
                   className="w-full py-3 bg-gradient-to-tr from-indigo-500 to-violet-600 hover:from-indigo-400 hover:to-violet-500 rounded-xl text-xs font-bold text-white transition-all shadow-[0_4px_16px_rgba(99,102,241,0.35)] cursor-pointer hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-1.5"
                 >
-                  <Loader2 className="w-3.5 h-3.5 text-white/80 animate-spin" />
+                  <Sparkles className="w-3.5 h-3.5 text-white/80" />
                   Apply Update & Reload
                 </button>
                 
