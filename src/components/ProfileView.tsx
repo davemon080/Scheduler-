@@ -710,7 +710,14 @@ export default function ProfileView({
         },
         body: JSON.stringify({ reference: ref, matricNumber: user.matricNumber })
       });
-      const data = await res.json();
+      
+      const text = await res.text();
+      let data: any;
+      try {
+        data = JSON.parse(text);
+      } catch (parseError) {
+        throw new Error('Our connection is busy or returned an unexpected format. Retrying with direct client-side resiliency sync...');
+      }
 
       if (data.success) {
         localStorage.setItem(`ich100l_sub_${user.matricNumber}`, JSON.stringify({
@@ -788,7 +795,14 @@ export default function ProfileView({
         },
         body: JSON.stringify({ reference: profileManualRef.trim(), matricNumber: user.matricNumber })
       });
-      const data = await res.json();
+      
+      const text = await res.text();
+      let data: any;
+      try {
+        data = JSON.parse(text);
+      } catch (parseError) {
+        throw new Error('Our connection is busy or returned an unexpected plain format. Please try again in 10 seconds or copy your reference code to a Course Rep.');
+      }
 
       if (data.success) {
         setProfileManualSuccess('Reference verified successfully! Unlocking semester access... ⚡');

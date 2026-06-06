@@ -440,16 +440,18 @@ app.use("/uploads", express.static(uploadDir));
   app.post("/api/paystack-verify", async (req, res) => {
     const { reference, matricNumber } = req.body;
     if (!reference) {
-      return res.status(400).json({ error: "Reference parameter is required." });
+      return res.status(200).json({ success: false, message: "Transaction reference is required. Please type or paste your reference." });
     }
 
     const paystackSecret = process.env.PAYSTACK_SECRET_KEY || "";
     if (!paystackSecret) {
-      return res.status(550).json({ success: false, message: "Paystack secret key is not configured in the server environment settings." });
+      return res.status(200).json({ success: false, message: "Paystack billing credentials are not configured on the server. Please try again later or contact support." });
     }
 
     try {
-      const response = await fetch(`https://api.paystack.co/transaction/verify/${reference}`, {
+      // URL encode the reference to ensure special characters don't break the fetch call URL
+      const cleanRef = String(reference).trim();
+      const response = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(cleanRef)}`, {
         method: "GET",
         headers: {
           Authorization: `Bearer ${paystackSecret}`,
@@ -457,7 +459,18 @@ app.use("/uploads", express.static(uploadDir));
         },
       });
 
-      const data = await response.json();
+      // Avoid direct response.json() in case Paystack or proxy returns non-JSON/HTML on failure
+      const text = await response.text();
+      let data: any;
+      try {
+        data = JSON.parse(text);
+      } catch (parseErr) {
+        console.error(`[Server API] Paystack response parsing failed. Status: ${response.status}. Raw body: ${text.slice(0, 250)}`);
+        return res.status(200).json({
+          success: false,
+          message: `The payment gateway integration returned an invalid response format (Status: ${response.status}). If you already paid, please try registering again or contact a Course Admin.`
+        });
+      }
       
       if (data.status === true && data.data && data.data.status === "success") {
         const payAmount = data.data.amount / 100;
@@ -473,14 +486,14 @@ app.use("/uploads", express.static(uploadDir));
           }
           const nField = data.data.metadata.custom_fields.find((f: any) => f.variable_name === 'student_name');
           if (nField) {
-            foundName = foundName || nField.value;
+            foundName = foundName || mField.value || nField.value;
           }
         }
         
         // Backup: extract from reference if it has format sub-[matric]-timestamp
-        if (!foundMatric && reference.startsWith("sub-")) {
+        if (!foundMatric && cleanRef.startsWith("sub-")) {
           // e.g. sub-2025-PS-ICH-0113-1718923
-          const parts = reference.split("-");
+          const parts = cleanRef.split("-");
           if (parts.length >= 2) {
             // Reconstruct likely matric by popping the last timestamp section off and reversing dashes to slashes
             const timestampPart = parts[parts.length - 1];
@@ -525,13 +538,13 @@ app.use("/uploads", express.static(uploadDir));
             name: foundName || "Chemistry Student",
             lastPaymentDate: new Date().toISOString(),
             expiryDate: 'Current Semester',
-            reference: reference,
+            reference: cleanRef,
             amountPaid: payAmount,
           });
 
           // Write to chronological payments list
-          await setDoc(doc(db, 'payments', reference), {
-            reference: reference,
+          await setDoc(doc(db, 'payments', cleanRef), {
+            reference: cleanRef,
             matricNumber: foundMatric,
             email: customerEmail || `${foundMatric.replace(/\//g, '_')}@ich100l.edu`,
             name: foundName || "Chemistry Student",
@@ -541,10 +554,10 @@ app.use("/uploads", express.static(uploadDir));
           });
           console.log(`[Server API] Securely registered active subscription & payment log for student '${foundMatric}'`);
         } else {
-          console.warn(`[Server API] Paystack verification succeeded for ref '${reference}', but could not map transaction to a student matricNumber.`);
+          console.warn(`[Server API] Paystack verification succeeded for ref '${cleanRef}', but could not map transaction to a student matricNumber.`);
         }
 
-        return res.json({
+        return res.status(200).json({
           success: true,
           data: {
             amount: payAmount,
@@ -554,16 +567,17 @@ app.use("/uploads", express.static(uploadDir));
           }
         });
       } else {
-        return res.status(400).json({
+        const paystackMsg = data.message || "Paystack transaction was unsuccessful or remains unverified.";
+        return res.status(200).json({
           success: false,
-          message: data.message || "Paystack transaction was unsuccessful or unverified."
+          message: `The reference provided is incorrect, unpaid, or does not exist on Paystack (Paystack says: "${paystackMsg}"). Please double check your reference and try again.`
         });
       }
     } catch (err: any) {
       console.error("Paystack server-side validation error: ", err);
-      return res.status(500).json({
+      return res.status(200).json({
         success: false,
-        error: err.message || "An error occurred during payment verification with Paystack."
+        message: err.message || "A network error occurred while communicating with Paystack verification service."
       });
     }
   });

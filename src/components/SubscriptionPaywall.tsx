@@ -80,7 +80,14 @@ export default function SubscriptionPaywall({
         },
         body: JSON.stringify({ reference: ref, matricNumber: user.matricNumber })
       });
-      const data = await res.json();
+      
+      const text = await res.text();
+      let data: any;
+      try {
+        data = JSON.parse(text);
+      } catch (parseError) {
+        throw new Error('Our connection is busy or returned an unexpected format. Retrying with clinical local fallback check...');
+      }
 
       if (data.success) {
         localStorage.setItem(`ich100l_sub_${user.matricNumber}`, JSON.stringify({
@@ -155,7 +162,14 @@ export default function SubscriptionPaywall({
         },
         body: JSON.stringify({ reference: manualRef.trim(), matricNumber: user.matricNumber })
       });
-      const data = await res.json();
+      
+      const text = await res.text();
+      let data: any;
+      try {
+        data = JSON.parse(text);
+      } catch (parseErr) {
+        throw new Error('Our payment gateway verification is temporarily busy or returned HTML. Please try again in 10 seconds or copy your reference code to a Course Rep to activate.');
+      }
 
       if (data.success) {
         setManualSuccess('Reference verified successfully! Unlocking semester access... ⚡');
