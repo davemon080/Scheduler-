@@ -438,19 +438,57 @@ app.use("/uploads", express.static(uploadDir));
 
   // API route to securely verify Paystack transactions
   app.post("/api/paystack-verify", async (req, res) => {
-    const { reference, matricNumber } = req.body;
-    if (!reference) {
-      return res.status(200).json({ success: false, message: "Transaction reference is required. Please type or paste your reference." });
-    }
-
-    const paystackSecret = process.env.PAYSTACK_SECRET_KEY || "";
-    if (!paystackSecret) {
-      return res.status(200).json({ success: false, message: "Paystack billing credentials are not configured on the server. Please try again later or contact support." });
-    }
-
     try {
-      // URL encode the reference to ensure special characters don't break the fetch call URL
+      const body = req.body || {};
+      const { reference, matricNumber } = body;
+
+      if (!reference) {
+        return res.status(200).json({ success: false, message: "Transaction reference is required. Please type or paste your reference." });
+      }
+
+      const paystackSecret = process.env.PAYSTACK_SECRET_KEY || "";
+      if (!paystackSecret) {
+        return res.status(200).json({ success: false, message: "Paystack billing credentials are not configured on the server. Please check environment variables or contact support." });
+      }
+
       const cleanRef = String(reference).trim();
+      const studentMatric = matricNumber ? String(matricNumber).trim() : "";
+      
+      const normalizeMatric = (m: string) => {
+        if (!m) return "";
+        return m.toLowerCase().replace(/[^a-z0-9]/g, "");
+      };
+      
+      const normalizedStudentMatric = normalizeMatric(studentMatric);
+
+      // 1. Prevent double-claiming of the same reference by looking up prior payment log
+      if (db) {
+        try {
+          const checkPrior = async () => {
+            const paymentDocRef = doc(db, 'payments', cleanRef);
+            return await getDoc(paymentDocRef);
+          };
+          // Set a 2 second timeout for the prior check to prevent gateway issues when firestore is slow
+          const pSnap: any = await Promise.race([
+            checkPrior(),
+            new Promise<any>((_, reject) => setTimeout(() => reject(new Error("Timeout")), 1800))
+          ]);
+          if (pSnap && pSnap.exists()) {
+            const existingPayment = pSnap.data();
+            const existingMatric = existingPayment.matricNumber || "";
+            if (normalizedStudentMatric && normalizeMatric(existingMatric) !== normalizedStudentMatric) {
+              return res.status(200).json({
+                success: false,
+                message: `Verification halted: This reference has already been claimed and verified by a different student (${existingMatric}). You cannot reuse or hijack another user's payment reference.`
+              });
+            }
+          }
+        } catch (dbErr: any) {
+          console.warn("[Server] Previous payment reference check bypass or failed:", dbErr.message || dbErr);
+        }
+      }
+
+      // 2. Fetch official status from Paystack
       const response = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(cleanRef)}`, {
         method: "GET",
         headers: {
@@ -459,7 +497,6 @@ app.use("/uploads", express.static(uploadDir));
         },
       });
 
-      // Avoid direct response.json() in case Paystack or proxy returns non-JSON/HTML on failure
       const text = await response.text();
       let data: any;
       try {
@@ -475,86 +512,117 @@ app.use("/uploads", express.static(uploadDir));
       if (data.status === true && data.data && data.data.status === "success") {
         const payAmount = data.data.amount / 100;
         
-        // Find matricNumber and student name from custom fields, input body or email lookup
-        let foundMatric = matricNumber || "";
-        let foundName = "";
+        let metadataMatric = "";
+        let metadataName = "";
         
-        if (data.data.metadata && data.data.metadata.custom_fields) {
-          const mField = data.data.metadata.custom_fields.find((f: any) => f.variable_name === 'matric_number');
+        if (data.data.metadata && data.data.metadata.custom_fields && Array.isArray(data.data.metadata.custom_fields)) {
+          const mField = data.data.metadata.custom_fields.find((f: any) => f && f.variable_name === 'matric_number');
           if (mField && mField.value) {
-            foundMatric = foundMatric || String(mField.value);
+            metadataMatric = String(mField.value).trim();
           }
-          const nField = data.data.metadata.custom_fields.find((f: any) => f.variable_name === 'student_name');
+          const nField = data.data.metadata.custom_fields.find((f: any) => f && f.variable_name === 'student_name');
           if (nField && nField.value) {
-            foundName = foundName || String(nField.value);
+            metadataName = String(nField.value).trim();
           }
         }
         
         // Backup: extract from reference if it has format sub-[matric]-timestamp
-        if (!foundMatric && cleanRef.startsWith("sub-")) {
-          // e.g. sub-2025-PS-ICH-0113-1718923
+        let backupMatric = "";
+        if (cleanRef.startsWith("sub-")) {
           const parts = cleanRef.split("-");
           if (parts.length >= 2) {
-            // Reconstruct likely matric by popping the last timestamp section off and reversing dashes to slashes
             const timestampPart = parts[parts.length - 1];
             if (!isNaN(Number(timestampPart)) || timestampPart.length > 10) {
               const matricPart = parts.slice(1, parts.length - 1).join("/");
               if (matricPart.length > 3) {
-                foundMatric = matricPart;
+                backupMatric = matricPart;
               }
             }
           }
         }
 
-        const customerEmail = data.data.customer?.email;
+        const customerEmail = data.data.customer?.email || "";
+        let resolvedMatric = metadataMatric || backupMatric || "";
         
         // Tertiary backup: lookup by email in all active users
-        if (!foundMatric && customerEmail && db) {
+        if (!resolvedMatric && customerEmail && db) {
           try {
-            const usersColl = collection(db, "users");
-            const usersSnap = await getDocs(usersColl);
-            for (const uDoc of usersSnap.docs) {
-              const uData = uDoc.data();
-              if (uData.email && uData.email.toLowerCase() === customerEmail.toLowerCase()) {
-                foundMatric = uData.matricNumber;
-                foundName = foundName || uData.name;
-                break;
+            const fetchUsers = async () => {
+              const usersColl = collection(db, "users");
+              return await getDocs(usersColl);
+            };
+            const usersSnap: any = await Promise.race([
+              fetchUsers(),
+              new Promise<any>((_, reject) => setTimeout(() => reject(new Error("Timeout")), 1500))
+            ]);
+            if (usersSnap) {
+              for (const uDoc of usersSnap.docs) {
+                const uData = uDoc.data();
+                if (uData.email && uData.email.toLowerCase() === customerEmail.toLowerCase()) {
+                  resolvedMatric = uData.matricNumber;
+                  metadataName = metadataName || uData.name;
+                  break;
+                }
               }
             }
-          } catch (dbErr) {
-            console.warn("[Server] Backup query fallback for users table failed:", dbErr);
+          } catch (dbErr: any) {
+            console.warn("[Server] Backup query fallback for users table bypassed:", dbErr.message || dbErr);
           }
+        }
+
+        // --- VERIFY IF USER SUPPLIED ANOTHER USER'S REFERENCE BY MISTAKE ---
+        if (resolvedMatric && studentMatric) {
+          const normalizedResolved = normalizeMatric(resolvedMatric);
+          if (normalizedResolved !== normalizedStudentMatric) {
+            return res.status(200).json({
+              success: false,
+              message: `Verification Halted: This payment reference belongs to another student (${resolvedMatric}) according to our records. Please make sure you are inputting your own correct payment reference.`
+            });
+          }
+        }
+
+        const finalMatric = resolvedMatric || studentMatric;
+        if (!finalMatric) {
+          return res.status(200).json({
+            success: false,
+            message: "We found the transaction on Paystack, but could not associate it with any student matric number. Please contact an admin."
+          });
         }
 
         // Write directly to Firestore server-side on success to bypass client issues
-        if (foundMatric && db) {
-          const safeId = getSafeDocId(foundMatric);
-          const subDocRef = doc(db, 'subscriptions', safeId);
-          
-          await setDoc(subDocRef, {
-            status: 'active',
-            matricNumber: foundMatric,
-            email: customerEmail || `${foundMatric.replace(/\//g, '_')}@ich100l.edu`,
-            name: foundName || "Chemistry Student",
-            lastPaymentDate: new Date().toISOString(),
-            expiryDate: 'Current Semester',
-            reference: cleanRef,
-            amountPaid: payAmount,
-          });
+        if (db) {
+          const saveToFirestore = async () => {
+            const safeId = getSafeDocId(finalMatric);
+            const subDocRef = doc(db, 'subscriptions', safeId);
+            
+            await setDoc(subDocRef, {
+              status: 'active',
+              matricNumber: finalMatric,
+              email: customerEmail || `${finalMatric.replace(/\//g, '_')}@ich100l.edu`,
+              name: metadataName || "Chemistry Student",
+              lastPaymentDate: new Date().toISOString(),
+              expiryDate: 'Current Semester',
+              reference: cleanRef,
+              amountPaid: payAmount,
+            });
 
-          // Write to chronological payments list
-          await setDoc(doc(db, 'payments', cleanRef), {
-            reference: cleanRef,
-            matricNumber: foundMatric,
-            email: customerEmail || `${foundMatric.replace(/\//g, '_')}@ich100l.edu`,
-            name: foundName || "Chemistry Student",
-            amount: payAmount,
-            paidAt: new Date().toISOString(),
-            status: 'success'
+            // Write to chronological payments list
+            await setDoc(doc(db, 'payments', cleanRef), {
+              reference: cleanRef,
+              matricNumber: finalMatric,
+              email: customerEmail || `${finalMatric.replace(/\//g, '_')}@ich100l.edu`,
+              name: metadataName || "Chemistry Student",
+              amount: payAmount,
+              paidAt: new Date().toISOString(),
+              status: 'success'
+            });
+            console.log(`[Server API] Background Firestore write succeeded for student '${finalMatric}'`);
+          };
+
+          // Trigger saving in background with no await to prevent timeout/gateway issues on slow connections
+          saveToFirestore().catch(writeErr => {
+            console.error("[Server API] Background Firestore payment save failed or timed out:", writeErr);
           });
-          console.log(`[Server API] Securely registered active subscription & payment log for student '${foundMatric}'`);
-        } else {
-          console.warn(`[Server API] Paystack verification succeeded for ref '${cleanRef}', but could not map transaction to a student matricNumber.`);
         }
 
         return res.status(200).json({

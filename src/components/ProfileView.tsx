@@ -734,9 +734,16 @@ export default function ProfileView({
           setSubPaySuccess('');
         }, 2000);
       } else {
-        throw new Error(data.message || 'Payment verification failed on server.');
+        const blockErr = new Error(data.message || 'Payment verification failed on server.');
+        (blockErr as any).isDefinitive = true;
+        throw blockErr;
       }
     } catch (err: any) {
+      if (err.isDefinitive) {
+        setSubPayError(err.message);
+        setIsPayingSub(false);
+        return;
+      }
       console.warn('Server-side verification failed, using client fallback sync:', err);
       // Fallback: write to Firestore directly from client as resiliency path
       const subData = {

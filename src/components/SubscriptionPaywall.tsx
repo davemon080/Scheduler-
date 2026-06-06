@@ -102,9 +102,16 @@ export default function SubscriptionPaywall({
           onSuccessVerification();
         }, 1200);
       } else {
-        throw new Error(data.message || 'Payment verification failed on server.');
+        const blockErr = new Error(data.message || 'Payment verification failed on server.');
+        (blockErr as any).isDefinitive = true;
+        throw blockErr;
       }
     } catch (err: any) {
+      if (err.isDefinitive) {
+        setErrorMessage(err.message);
+        setIsProcessing(false);
+        return;
+      }
       console.warn('Server-side verification failed or slow, using high-resiliency client sync fallback:', err);
       // Fallback: write to Firestore directly from client so students are NEVER stranded
       const subData = {
