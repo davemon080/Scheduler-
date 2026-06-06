@@ -28,7 +28,7 @@ export default function AdminDashboard({
 }: AdminDashboardProps) {
   const [users, setUsers] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedRegisterId, setSelectedRegisterId] = useState<string>('ps/ich');
+  const [selectedRegisterId, setSelectedRegisterId] = useState<string>('all');
   const [semesterConfig, setSemesterConfig] = useState<{
     semesterActive: boolean;
     semesterStartedAt: string | null;
@@ -1445,6 +1445,17 @@ export default function AdminDashboard({
     return diff < 48 * 60 * 60 * 1000; // registered within last 48 hours
   }).length;
 
+  // Calculate standard paid counts
+  const paidStudentsCount = users.filter(u => {
+    const status = getUserStatus(u);
+    return status.type === 'paid';
+  }).length;
+
+  const filteredPaidCount = filteredUsers.filter(u => {
+    const status = getUserStatus(u);
+    return status.type === 'paid';
+  }).length;
+
   // Simple clean helper for visual initials
   const getInitials = (fullName: string) => {
     if (!fullName) return '?';
@@ -1561,14 +1572,32 @@ export default function AdminDashboard({
         {activeAdminTab === 'dashboard' ? (
           <>
             {/* Telemetry/KPI Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
               <GlassCard className="p-4 bg-slate-950/40 border-slate-900 relative">
                 <Users className="w-8 h-8 text-indigo-400/20 absolute right-4 top-4 font-black" />
                 <h4 className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">Student Registry</h4>
-                <p className="text-3xl font-display font-black text-slate-100 mt-1">{totalUserCount}</p>
+                <p className="text-3xl font-display font-black text-slate-100 mt-1">
+                  {filteredUsers.length} <span className="text-sm font-normal text-slate-500 font-mono">/ {totalUserCount}</span>
+                </p>
                 <div className="text-[10px] text-slate-400 mt-2 flex items-center gap-1.5 font-mono">
-                  <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full" />
-                  <span>Authorized database profiles</span>
+                  <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full shrink-0 animate-pulse" />
+                  <span className="truncate">
+                    {selectedRegisterId === 'all' ? 'All Depts' : (departments.find(d => d.id === selectedRegisterId)?.prefix || selectedRegisterId).toUpperCase()} • {(selectedLevelFilter || 'ALL').toUpperCase()}
+                  </span>
+                </div>
+              </GlassCard>
+
+              <GlassCard className="p-4 bg-slate-950/40 border-slate-900 relative">
+                <CreditCard className="w-8 h-8 text-emerald-400/20 absolute right-4 top-4 font-black" />
+                <h4 className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">Paid Students</h4>
+                <p className="text-3xl font-display font-black text-emerald-400 mt-1">
+                  {filteredPaidCount} <span className="text-sm font-normal text-slate-500 font-mono">/ {paidStudentsCount}</span>
+                </p>
+                <div className="text-[10px] text-slate-400 mt-2 flex items-center gap-1.5 font-mono">
+                  <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full shrink-0 animate-pulse" />
+                  <span className="truncate">
+                    Paid: {filteredPaidCount} in selection
+                  </span>
                 </div>
               </GlassCard>
 
@@ -1577,8 +1606,8 @@ export default function AdminDashboard({
                 <h4 className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">Course Representatives</h4>
                 <p className="text-3xl font-display font-black text-rose-400 mt-1">{courseRepCount}</p>
                 <div className="text-[10px] text-slate-400 mt-2 flex items-center gap-1.5 font-mono">
-                  <div className="w-1.5 h-1.5 bg-rose-500 rounded-full" />
-                  <span>With calendar and post write clearances</span>
+                  <div className="w-1.5 h-1.5 bg-rose-500 rounded-full shrink-0" />
+                  <span className="truncate">Representatives / Admins</span>
                 </div>
               </GlassCard>
 
@@ -1587,8 +1616,8 @@ export default function AdminDashboard({
                 <h4 className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">Added Last 48 hrs</h4>
                 <p className="text-3xl font-display font-black text-emerald-400 mt-1">{recentSignupsCount}</p>
                 <div className="text-[10px] text-slate-400 mt-2 flex items-center gap-1.5 font-mono">
-                  <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
-                  <span>Newly provisioned student sessions</span>
+                  <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full shrink-0" />
+                  <span className="truncate">New student registrations</span>
                 </div>
               </GlassCard>
             </div>
@@ -1705,6 +1734,27 @@ export default function AdminDashboard({
 
               {/* Department registers selector */}
               <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-950/40 border border-slate-900 rounded-2xl">
+                {/* All Departments selection tab */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedRegisterId('all')}
+                  className={`px-3 py-1.5 rounded-xl text-[10px] font-mono font-bold uppercase tracking-wider transition-all duration-200 flex items-center gap-2 cursor-pointer outline-none ${
+                    selectedRegisterId === 'all'
+                      ? 'bg-gradient-to-r from-rose-500/20 to-rose-600/15 border border-rose-500/30 text-rose-350'
+                      : 'border border-transparent text-slate-450 hover:text-rose-450/70 hover:bg-slate-900/40'
+                  }`}
+                >
+                  <Database className="w-3.5 h-3.5 text-rose-400 font-bold" />
+                  <span>All Departments</span>
+                  <span className={`text-[9.5px] font-mono px-1.5 py-0.2 rounded-md font-bold ${
+                    selectedRegisterId === 'all' 
+                      ? 'bg-rose-500/30 text-rose-300' 
+                      : 'bg-slate-900 text-slate-550'
+                  }`}>
+                    {users.length}
+                  </span>
+                </button>
+
                 {departments.map((dept) => {
                   const deptUsers = users.filter((u) => getUserDepartmentId(u) === dept.id);
                   const isSelected = selectedRegisterId === dept.id;
