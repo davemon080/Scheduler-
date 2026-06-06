@@ -494,10 +494,10 @@ export default function AIDashboardPanel({
             {/* Tool 1: PDF Summarization Card */}
             <div 
               onClick={() => setSelectedTool("summarize")}
-              className="p-5 bg-[#0a0f21] border border-slate-850 hover:border-indigo-505/50 rounded-3xl cursor-pointer transition-all duration-300 group flex items-start gap-4 relative overflow-hidden shadow-lg"
+              className="p-5 bg-[#0a0f21] border border-slate-800 hover:border-indigo-500/50 rounded-3xl cursor-pointer transition-all duration-300 group flex items-start gap-4 relative overflow-hidden shadow-lg"
               id="ai-tool-btn-summarize"
             >
-              <div className="absolute top-0 right-0 p-6 opacity-[0.02] text-indigo-455 transform translate-x-2 -translate-y-2 group-hover:scale-105 transition-transform duration-300">
+              <div className="absolute top-0 right-0 p-6 opacity-[0.02] text-indigo-400 transform translate-x-2 -translate-y-2 group-hover:scale-105 transition-transform duration-300">
                 <FileText className="w-24 h-24" />
               </div>
               <div className="p-3.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 group-hover:bg-indigo-500/20 text-indigo-400 shrink-0 transition-colors">
@@ -505,11 +505,11 @@ export default function AIDashboardPanel({
               </div>
               <div className="flex-1 space-y-1.5 min-w-0">
                 <span className="text-[9px] font-mono text-indigo-300 uppercase tracking-widest font-black block">PDF Core Engine</span>
-                <h3 className="text-sm font-display font-bold text-slate-100 group-hover:text-white flex items-center gap-1">
+                <h3 className="text-base font-sans font-black text-slate-100 group-hover:text-indigo-400 flex items-center gap-1.5 transition-colors">
                   Syllabus PDF Summarizer
-                  <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-indigo-400 group-hover:translate-x-0.5 transition-all" />
+                  <ChevronRight className="w-4 h-4 text-indigo-400 group-hover:translate-x-1 transition-transform" />
                 </h3>
-                <p className="text-[11px] text-slate-400 leading-relaxed font-sans">
+                <p className="text-[11px] text-slate-400 leading-relaxed font-sans mt-0.5">
                   Generate beautiful executive briefs & cheat sheets from uploaded lecture syllabus PDFs.
                 </p>
               </div>
@@ -518,10 +518,10 @@ export default function AIDashboardPanel({
             {/* Tool 2: Quiz Generation Card */}
             <div 
               onClick={() => setSelectedTool("quiz")}
-              className="p-5 bg-[#0a0f21] border border-slate-850 hover:border-indigo-505/50 rounded-3xl cursor-pointer transition-all duration-300 group flex items-start gap-4 relative overflow-hidden shadow-lg"
+              className="p-5 bg-[#0a0f21] border border-slate-800 hover:border-indigo-500/50 rounded-3xl cursor-pointer transition-all duration-300 group flex items-start gap-4 relative overflow-hidden shadow-lg"
               id="ai-tool-btn-quiz"
             >
-              <div className="absolute top-0 right-0 p-6 opacity-[0.02] text-indigo-455 transform translate-x-2 -translate-y-2 group-hover:scale-105 transition-transform duration-300">
+              <div className="absolute top-0 right-0 p-6 opacity-[0.02] text-indigo-400 transform translate-x-2 -translate-y-2 group-hover:scale-105 transition-transform duration-300">
                 <Brain className="w-24 h-24" />
               </div>
               <div className="p-3.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 group-hover:bg-indigo-500/20 text-indigo-400 shrink-0 transition-colors">
@@ -529,11 +529,11 @@ export default function AIDashboardPanel({
               </div>
               <div className="flex-1 space-y-1.5 min-w-0">
                 <span className="text-[9px] font-mono text-indigo-300 uppercase tracking-widest font-black block">Diagnostic Tools</span>
-                <h3 className="text-sm font-display font-bold text-slate-100 group-hover:text-white flex items-center gap-1">
+                <h3 className="text-base font-sans font-black text-slate-100 group-hover:text-indigo-400 flex items-center gap-1.5 transition-colors">
                   Topic Revision Quiz Master
-                  <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-indigo-450 group-hover:translate-x-0.5 transition-all" />
+                  <ChevronRight className="w-4 h-4 text-indigo-400 group-hover:translate-x-1 transition-transform" />
                 </h3>
-                <p className="text-[11px] text-slate-400 leading-relaxed font-sans">
+                <p className="text-[11px] text-slate-400 leading-relaxed font-sans mt-0.5">
                   Construct interactive mock quizzes directly testing core concepts inside syllabus documents.
                 </p>
               </div>
@@ -542,10 +542,10 @@ export default function AIDashboardPanel({
             {/* Tool 3: Assignment Help Card */}
             <div 
               onClick={() => setSelectedTool("help")}
-              className="p-5 bg-[#0a0f21] border border-slate-855 hover:border-indigo-505/50 rounded-3xl cursor-pointer transition-all duration-300 group flex items-start gap-4 relative overflow-hidden shadow-lg"
+              className="p-5 bg-[#0a0f21] border border-slate-800 hover:border-indigo-500/50 rounded-3xl cursor-pointer transition-all duration-300 group flex items-start gap-4 relative overflow-hidden shadow-lg"
               id="ai-tool-btn-help"
             >
-              <div className="absolute top-0 right-0 p-6 opacity-[0.02] text-indigo-455 transform translate-x-2 -translate-y-2 group-hover:scale-105 transition-transform duration-300">
+              <div className="absolute top-0 right-0 p-6 opacity-[0.02] text-indigo-400 transform translate-x-2 -translate-y-2 group-hover:scale-105 transition-transform duration-300">
                 <HelpCircle className="w-24 h-24" />
               </div>
               <div className="p-3.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 group-hover:bg-indigo-500/20 text-indigo-400 shrink-0 transition-colors">
@@ -553,11 +553,11 @@ export default function AIDashboardPanel({
               </div>
               <div className="flex-1 space-y-1.5 min-w-0">
                 <span className="text-[9px] font-mono text-indigo-300 uppercase tracking-widest font-black block">Active Assistant</span>
-                <h3 className="text-sm font-display font-bold text-slate-100 group-hover:text-white flex items-center gap-1">
-                  Assignment Assignment Solver
-                  <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-indigo-450 group-hover:translate-x-0.5 transition-all" />
+                <h3 className="text-base font-sans font-black text-slate-100 group-hover:text-indigo-400 flex items-center gap-1.5 transition-colors">
+                  Assignment Solver Co-Pilot
+                  <ChevronRight className="w-4 h-4 text-indigo-400 group-hover:translate-x-1 transition-transform" />
                 </h3>
-                <p className="text-[11px] text-slate-400 leading-relaxed font-sans">
+                <p className="text-[11px] text-slate-400 leading-relaxed font-sans mt-0.5">
                   Settle homework questions with pristine step-by-step calculus proofs and guidelines.
                 </p>
               </div>
@@ -620,9 +620,39 @@ export default function AIDashboardPanel({
                 </button>
               </div>
 
-              {/* 1. CONFIGURATION WORKSPACE: CLEAN MINIMAL TASK-SPECIFIC SCREENS & VISUAL PREVIEWS */}
-              {workflowState === "config" && (
-                <div className="flex-1 flex flex-col overflow-hidden relative">
+              {!isCourseRep ? (
+                /* GORGEOUS FULL-SCREEN placeholder message for non-course representatives */
+                <div className="flex-1 flex flex-col items-center justify-center p-8 bg-[#050812] text-center space-y-6 select-none relative">
+                  <div className="absolute top-[20%] left-[20%] w-[60%] h-[60%] bg-indigo-500/5 rounded-full filter blur-[120px] pointer-events-none" />
+                  
+                  <div className="p-5 rounded-3xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 animate-pulse relative z-10">
+                    <Sparkles className="w-12 h-12" />
+                  </div>
+
+                  <div className="space-y-3.5 max-w-sm relative z-10">
+                    <h3 className="text-2xl font-sans font-black text-white tracking-tight uppercase">
+                      AI Feature Coming Soon
+                    </h3>
+                    <p className="text-xs text-slate-400 font-sans leading-relaxed">
+                      This premium generative AI model is currently being integrated by your Class Representatives. Stay tuned for automatic synthesis, mock exam prep, and homework advisor support!
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedTool(null);
+                      setWorkflowState("config");
+                    }}
+                    className="relative z-10 px-6 py-3.5 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-450 hover:to-indigo-550 border border-indigo-400/30 rounded-2xl text-white font-mono font-black text-xs uppercase tracking-widest transition-all cursor-pointer shadow-lg active:scale-95"
+                  >
+                    Return to Grid Dashboard
+                  </button>
+                </div>
+              ) : (
+                /* 1. CONFIGURATION WORKSPACE: CLEAN MINIMAL TASK-SPECIFIC SCREENS & VISUAL PREVIEWS */
+                workflowState === "config" && (
+                  <div className="flex-1 flex flex-col overflow-hidden relative">
                   
                   {/* SWITCH TO SPECIFIC TOOL SCREEN MODULES */}
                   
@@ -1102,7 +1132,8 @@ export default function AIDashboardPanel({
                   </div>
 
                 </div>
-              )}
+              )
+            )}
 
               {/* 2. PROGRESS ANALYSIS LOADER */}
               {workflowState === "analyzing" && (

@@ -1582,14 +1582,6 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<any>('schedule');
   const [isAIPanelOpen, setIsAIPanelOpen] = useState(false);
   const [aiPanelSource, setAiPanelSource] = useState<{ type: 'deadline' | 'pdf' | 'custom'; id?: string; name: string; details?: string } | null>(null);
-  const [hasAutoOpenedAI, setHasAutoOpenedAI] = useState(false);
-
-  useEffect(() => {
-    if (currentUser?.isCourseRep && !hasAutoOpenedAI) {
-      setIsAIPanelOpen(true);
-      setHasAutoOpenedAI(true);
-    }
-  }, [currentUser, hasAutoOpenedAI]);
 
   const unseenAnnouncementsCount = useMemo(() => {
     if (!currentUser) return 0;
