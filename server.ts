@@ -481,6 +481,34 @@ app.use("/uploads", express.static(uploadDir));
                 success: false,
                 message: `Verification halted: This reference has already been claimed and verified by a different student (${existingMatric}). You cannot reuse or hijack another user's payment reference.`
               });
+            } else if (normalizedStudentMatric && normalizeMatric(existingMatric) === normalizedStudentMatric) {
+              console.log(`[Server API] Secure Match: Reference ${cleanRef} was already verified for student ${existingMatric}. Healing subscription and returning success.`);
+              
+              const safeId = getSafeDocId(studentMatric);
+              const subDocRef = doc(db, 'subscriptions', safeId);
+              
+              // Direct write to subscription to self-heal
+              await setDoc(subDocRef, {
+                status: 'active',
+                matricNumber: studentMatric,
+                email: existingPayment.email || `${studentMatric.replace(/\//g, '_')}@ich100l.edu`,
+                name: existingPayment.name || "Chemistry Student",
+                lastPaymentDate: existingPayment.paidAt || new Date().toISOString(),
+                expiryDate: 'Current Semester',
+                reference: cleanRef,
+                amountPaid: existingPayment.amount || 1000,
+              }, { merge: true });
+
+              return res.status(200).json({
+                success: true,
+                message: "Reference verified and subscription healed in database.",
+                data: {
+                  amount: existingPayment.amount || 1000,
+                  reference: cleanRef,
+                  email: existingPayment.email || "",
+                  paidAt: existingPayment.paidAt || new Date().toISOString()
+                }
+              });
             }
           }
         } catch (dbErr: any) {
@@ -488,14 +516,29 @@ app.use("/uploads", express.static(uploadDir));
         }
       }
 
-      // 2. Fetch official status from Paystack
-      const response = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(cleanRef)}`, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${paystackSecret}`,
-          "Content-Type": "application/json",
-        },
-      });
+      // 2. Fetch official status from Paystack with a secure timeout of 8 seconds
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      
+      let response;
+      try {
+        response = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(cleanRef)}`, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${paystackSecret}`,
+            "Content-Type": "application/json",
+          },
+          signal: controller.signal
+        });
+      } catch (fetchErr: any) {
+        console.error("[Server API] Paystack verify fetch error:", fetchErr);
+        return res.status(200).json({
+          success: false,
+          message: "The verification server failed to contact Paystack right now (Timeout/Network latency). Please click verify again to re-attempt."
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
 
       const text = await response.text();
       let data: any;
@@ -589,7 +632,7 @@ app.use("/uploads", express.static(uploadDir));
           });
         }
 
-        // Write directly to Firestore server-side on success to bypass client issues
+        // Write directly and eagerly to Firestore server-side on success
         if (db) {
           const saveToFirestore = async () => {
             const safeId = getSafeDocId(finalMatric);
@@ -616,13 +659,19 @@ app.use("/uploads", express.static(uploadDir));
               paidAt: new Date().toISOString(),
               status: 'success'
             });
-            console.log(`[Server API] Background Firestore write succeeded for student '${finalMatric}'`);
           };
 
-          // Trigger saving in background with no await to prevent timeout/gateway issues on slow connections
-          saveToFirestore().catch(writeErr => {
-            console.error("[Server API] Background Firestore payment save failed or timed out:", writeErr);
-          });
+          try {
+            console.log(`[Server API] COMMITTING payment and subscription for student '${finalMatric}'...`);
+            // Set a 4 second timeout constraint on database writes
+            await Promise.race([
+              saveToFirestore(),
+              new Promise<void>((_, reject) => setTimeout(() => reject(new Error("Database Write Timeout")), 3800))
+            ]);
+            console.log(`[Server API] Secure database write succeeded for student '${finalMatric}'`);
+          } catch (writeErr: any) {
+            console.error("[Server API] Background Firestore payment save failed or timed out:", writeErr.message || writeErr);
+          }
         }
 
         return res.status(200).json({
