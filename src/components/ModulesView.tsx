@@ -128,21 +128,29 @@ export function isIOSDevice(): boolean {
   );
 }
 
-// High-fidelity document viewing pipeline matching user requirements for iOS
+// Check if user is operating from an Android device
+export function isAndroidDevice(): boolean {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
+  return /Android/i.test(navigator.userAgent);
+}
+
+// High-fidelity document viewing pipeline matching user requirements for mobile
 export function getPDFViewUrl(pdfUrl: string): string {
   if (!pdfUrl) return '';
   const clean = pdfUrl.trim();
 
-  // If operating on an iOS device, stream or view the PDF via Google Drive/Docs Viewer directly
-  if (isIOSDevice()) {
-    const googleDriveMatch = clean.match(/https?:\/\/(?:drive|docs)\.google\.com\/(?:file\/d\/|open\?id=)([^/?#\s&]+)/);
-    if (googleDriveMatch && googleDriveMatch[1]) {
-      const fileId = googleDriveMatch[1];
-      // View via Google Drive directly for maximum fidelity on iOS
-      return `https://drive.google.com/file/d/${fileId}/view?usp=drivesdk`;
-    }
+  const isMobile = isIOSDevice() || isAndroidDevice();
 
-    // Wrap local or other PDF URLs through the Google Drive / Docs Online Web Viewer
+  // If it's a Google Drive URL, always present the inline preview /view link so it plays/renders natively
+  const googleDriveMatch = clean.match(/https?:\/\/(?:drive|docs)\.google\.com\/(?:file\/d\/|open\?id=)([^/?#\s&]+)/);
+  if (googleDriveMatch && googleDriveMatch[1]) {
+    const fileId = googleDriveMatch[1];
+    // View via Google Drive directly for maximum fidelity
+    return `https://drive.google.com/file/d/${fileId}/view?usp=drivesdk`;
+  }
+
+  // If operating on Android or iOS, stream or view custom/external PDFs via Google Docs Online Web Viewer
+  if (isMobile) {
     let absoluteUrl = clean;
     if (clean.startsWith('/')) {
       absoluteUrl = window.location.origin + clean;
@@ -150,7 +158,7 @@ export function getPDFViewUrl(pdfUrl: string): string {
     return `https://docs.google.com/viewer?url=${encodeURIComponent(absoluteUrl)}`;
   }
 
-  // Non-iOS standard raw download extraction pipeline
+  // Non-mobile standard raw download extraction pipeline
   return cleanUrlToDirectDownload(pdfUrl);
 }
 
