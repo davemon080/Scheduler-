@@ -502,7 +502,12 @@ export default function App() {
   }, [deletedActivitiesTrigger]);
 
   const matchedDepartment = useMemo(() => {
-    if (!currentUser?.matricNumber || departments.length === 0) return null;
+    if (!currentUser || departments.length === 0) return null;
+    if (currentUser.departmentId) {
+      const found = departments.find((dept) => dept.id === currentUser.departmentId);
+      if (found) return found;
+    }
+    if (!currentUser.matricNumber) return null;
     const userNorm = normalizeMatric(currentUser.matricNumber);
     return departments.find((dept) => {
       const deptNorm = normalizeMatric(dept.prefix);

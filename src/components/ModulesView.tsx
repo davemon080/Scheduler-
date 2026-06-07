@@ -444,9 +444,9 @@ export default function ModulesView({
       return false;
     }
     // 2. Class prefix fallback (if no departmentId, filter by code for safety)
-    if (matchedDepartment?.prefix) {
+    if (!c.departmentId && matchedDepartment?.prefix) {
       const normPrefix = matchedDepartment.prefix.toLowerCase(); // e.g., 'ps/ich' or 'ps/chm'
-      const codePrefix = c.courseCode.toLowerCase(); // e.g., 'ich101'
+      const codePrefix = c.courseCode.toLowerCase().replace(/[^a-z0-9]/g, ''); // e.g., 'ich 101' -> 'ich101'
       if (normPrefix.includes('ich') && (codePrefix.startsWith('chm') || codePrefix.startsWith('pac'))) {
         return false;
       }
