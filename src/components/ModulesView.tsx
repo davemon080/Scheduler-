@@ -250,8 +250,9 @@ export default function ModulesView({
       const unsubscribe = onSnapshot(collectionGroup(db, 'pdf-modules'), (snap) => {
         const counts: {[courseId: string]: number} = {};
         snap.forEach((docSnap) => {
-          const courseId = docSnap.ref.parent.parent?.id;
-          if (courseId) {
+          const parts = docSnap.ref.path.split('/');
+          if (parts.length >= 3 && parts[0] === 'courses') {
+            const courseId = parts[1];
             counts[courseId] = (counts[courseId] || 0) + 1;
           }
         });
@@ -271,8 +272,9 @@ export default function ModulesView({
       const unsubscribe = onSnapshot(collectionGroup(db, 'videos'), (snap) => {
         const counts: {[courseId: string]: number} = {};
         snap.forEach((docSnap) => {
-          const courseId = docSnap.ref.parent.parent?.id;
-          if (courseId) {
+          const parts = docSnap.ref.path.split('/');
+          if (parts.length >= 3 && parts[0] === 'courses') {
+            const courseId = parts[1];
             counts[courseId] = (counts[courseId] || 0) + 1;
           }
         });
