@@ -568,9 +568,10 @@ export default function ModulesView({
 
       setNewVideoUrl('');
       setIsAddingVideo(false);
-    } catch (saveErr) {
+    } catch (saveErr: any) {
       console.error('Save video failed:', saveErr);
-      setVideoError('Firestore database rules rejected this record addition.');
+      const errMsg = saveErr?.message || String(saveErr);
+      setVideoError(`Save video failed: ${errMsg}`);
     } finally {
       setIsSubmittingVideo(false);
     }
