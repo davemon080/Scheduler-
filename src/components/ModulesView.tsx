@@ -172,6 +172,7 @@ export default function ModulesView({
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [currentModules, setCurrentModules] = useState<PdfModule[]>([]);
   const [pdfCounts, setPdfCounts] = useState<{[courseId: string]: number}>({});
+  const [videoCounts, setVideoCounts] = useState<{[courseId: string]: number}>({});
 
   // Search & Loading
   const [searchQuery, setSearchQuery] = useState('');
@@ -261,6 +262,27 @@ export default function ModulesView({
       return () => unsubscribe();
     } catch (e) {
       console.error('collectionGroup subscript error', e);
+    }
+  }, []);
+
+  // 1c. Track individual YouTube video counts across all courses dynamically in real-time
+  useEffect(() => {
+    try {
+      const unsubscribe = onSnapshot(collectionGroup(db, 'videos'), (snap) => {
+        const counts: {[courseId: string]: number} = {};
+        snap.forEach((docSnap) => {
+          const courseId = docSnap.ref.parent.parent?.id;
+          if (courseId) {
+            counts[courseId] = (counts[courseId] || 0) + 1;
+          }
+        });
+        setVideoCounts(counts);
+      }, (err) => {
+        console.warn('Silent warning: Failed to sync collectionGroup video totals.', err);
+      });
+      return () => unsubscribe();
+    } catch (e) {
+      console.error('collectionGroup video subscript error', e);
     }
   }, []);
 
@@ -685,6 +707,19 @@ export default function ModulesView({
                                 }`}>
                                   <FileText className="w-3 h-3 text-indigo-400" />
                                   <span>{count} {count === 1 ? 'PDF' : 'PDFs'}</span>
+                                </span>
+                              );
+                            })()}
+                            {(() => {
+                              const count = videoCounts[course.id] || 0;
+                              return (
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold flex items-center gap-1 shrink-0 ${
+                                  count > 0 
+                                    ? 'bg-amber-500/10 border border-amber-500/20 text-amber-500' 
+                                    : 'bg-slate-800/20 border border-slate-800/40 text-slate-500'
+                                }`}>
+                                  <Play className="w-3 h-3 text-amber-500 fill-amber-500/10" />
+                                  <span>{count} {count === 1 ? 'Video' : 'Videos'}</span>
                                 </span>
                               );
                             })()}
