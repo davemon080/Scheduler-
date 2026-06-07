@@ -296,6 +296,41 @@
       },
       "required": ["id", "title", "pdfUrl", "uploadedAt"]
     },
+    "CourseVideo": {
+      "title": "CourseVideo",
+      "description": "YouTube lecture video uploaded by Course Reps",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "videoUrl": {
+          "type": "string"
+        },
+        "videoId": {
+          "type": "string"
+        },
+        "thumbnailUrl": {
+          "type": "string"
+        },
+        "uploadedAt": {
+          "type": "string"
+        },
+        "createdBy": {
+          "type": "string"
+        },
+        "departmentId": {
+          "type": "string"
+        }
+      },
+      "required": ["id", "title", "videoUrl", "videoId", "thumbnailUrl", "uploadedAt"]
+    },
     "Device": {
       "title": "Device",
       "description": "Device installation registry details for PWA and home screen tracking",
@@ -416,6 +451,10 @@
     "courses/{courseId}/pdf-modules/{moduleId}": {
       "schema": "PdfModule",
       "description": "Syllabus resource PDF folders"
+    },
+    "courses/{courseId}/videos/{videoId}": {
+      "schema": "CourseVideo",
+      "description": "YouTube lecture video files under specific course"
     },
     "activities/{activityId}": {
       "schema": "Activity",

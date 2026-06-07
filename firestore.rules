@@ -65,6 +65,11 @@ service cloud.firestore {
         allow read: if true;
         allow create, update, delete: if isValidId(moduleId);
       }
+
+      match /videos/{videoId} {
+        allow read: if true;
+        allow create, update, delete: if isValidId(videoId);
+      }
     }
 
     // Collection group rules for nested PDF modules
