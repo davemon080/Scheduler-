@@ -16,7 +16,7 @@ import {
 } from './data/defaultData';
 
 import { db, cleanData, getSafeDocId } from './lib/firebase';
-import { collection, onSnapshot, doc, setDoc, deleteDoc, getDocs, getDoc, collectionGroup, query, where } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, deleteDoc, getDocs, getDoc, collectionGroup, query, where, updateDoc, arrayUnion, increment } from 'firebase/firestore';
 
 // Custom subcomponents
 import GlassCard from './components/GlassCard';
@@ -1812,6 +1812,79 @@ export default function App() {
   }, [announcements]);
 
   const isCourseRep = currentUser?.isCourseRep === true;
+
+  const sentViewUpdatesRef = useRef<Set<string>>(new Set());
+
+  // Automatic unique view count tracking for Announcements, Deadlines, and Activities
+  useEffect(() => {
+    if (!currentUser || !currentUser.matricNumber) return;
+    const userMatric = currentUser.matricNumber;
+
+    if (activeTab === 'announcements' && visibleAnnouncements.length > 0) {
+      visibleAnnouncements.forEach(async (ann) => {
+        const updateKey = `ann-${ann.id}`;
+        if (!sentViewUpdatesRef.current.has(updateKey) && (!ann.viewedBy || !ann.viewedBy.includes(userMatric))) {
+          sentViewUpdatesRef.current.add(updateKey);
+          try {
+            const docRef = doc(db, 'announcements', ann.id);
+            await updateDoc(docRef, {
+              viewedBy: arrayUnion(userMatric)
+            });
+          } catch (err) {
+            console.warn(`Failed to track view for announcement ${ann.id}:`, err);
+            sentViewUpdatesRef.current.delete(updateKey);
+          }
+        }
+      });
+    }
+  }, [activeTab, visibleAnnouncements, currentUser]);
+
+  useEffect(() => {
+    if (!currentUser || !currentUser.matricNumber) return;
+    const userMatric = currentUser.matricNumber;
+
+    if (activeTab === 'deadlines' && visibleDeadlines.length > 0) {
+      visibleDeadlines.forEach(async (dl) => {
+        const updateKey = `dl-${dl.id}`;
+        if (!sentViewUpdatesRef.current.has(updateKey) && (!dl.viewedBy || !dl.viewedBy.includes(userMatric))) {
+          sentViewUpdatesRef.current.add(updateKey);
+          try {
+            const docRef = doc(db, 'deadlines', dl.id);
+            await updateDoc(docRef, {
+              viewedBy: arrayUnion(userMatric)
+            });
+          } catch (err) {
+            console.warn(`Failed to track view for deadline ${dl.id}:`, err);
+            sentViewUpdatesRef.current.delete(updateKey);
+          }
+        }
+      });
+    }
+  }, [activeTab, visibleDeadlines, currentUser]);
+
+  useEffect(() => {
+    if (!currentUser || !currentUser.matricNumber) return;
+    const userMatric = currentUser.matricNumber;
+
+    if ((activeTab === 'schedule' || activeTab === 'calendar' || activeTab === 'date-schedule') && visibleActivities.length > 0) {
+      visibleActivities.forEach(async (act) => {
+        if (!act.id) return;
+        const updateKey = `act-${act.id}`;
+        if (!sentViewUpdatesRef.current.has(updateKey) && (!act.viewedBy || !act.viewedBy.includes(userMatric))) {
+          sentViewUpdatesRef.current.add(updateKey);
+          try {
+            const docRef = doc(db, 'activities', act.id);
+            await updateDoc(docRef, {
+              viewedBy: arrayUnion(userMatric)
+            });
+          } catch (err) {
+            console.warn(`Failed to track view for activity ${act.id}:`, err);
+            sentViewUpdatesRef.current.delete(updateKey);
+          }
+        }
+      });
+    }
+  }, [activeTab, visibleActivities, currentUser]);
 
   const visiblePendingDeadlinesCount = useMemo(() => {
     if (!currentUser) return 0;

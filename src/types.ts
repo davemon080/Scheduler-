@@ -56,6 +56,8 @@ export interface Activity {
   severity?: string; // log severity levels
   timestamp?: string; // some custom logs use timestamp
   details?: string; // log details
+  viewedBy?: string[];
+  viewsCount?: number;
 }
 
 export interface ActivityRecord extends Activity {}
@@ -72,6 +74,7 @@ export interface Deadline {
   imageUrls?: string[];
   completedBy?: Record<string, boolean>;
   departmentId?: string;
+  viewedBy?: string[];
 }
 
 export interface Announcement {
@@ -86,6 +89,7 @@ export interface Announcement {
   departmentId?: string;
   linkUrl?: string;
   linkText?: string;
+  viewedBy?: string[];
 }
 
 export interface SubscriptionRecord {

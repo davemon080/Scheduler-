@@ -300,9 +300,16 @@ export default function Deadlines({
 
                         {/* Due date picker calendar label */}
                         <div className="flex items-center justify-between gap-1.5 pt-2 flex-wrap">
-                          <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-sans">
-                            <Calendar className="w-3.5 h-3.5 text-indigo-400/80" />
-                            <span>Deadline: <strong className="text-slate-300 font-mono">{dl.dueDate}</strong></span>
+                          <div className="flex items-center gap-3.5 flex-wrap">
+                            <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-sans">
+                              <Calendar className="w-3.5 h-3.5 text-indigo-400/80" />
+                              <span>Deadline: <strong className="text-slate-300 font-mono">{dl.dueDate}</strong></span>
+                            </div>
+
+                            <div className="flex items-center gap-1 text-[11px] text-slate-500 font-mono" title="Unique student views">
+                              <Eye className="w-3.5 h-3.5 shrink-0 text-slate-600" />
+                              <span>{dl.viewedBy?.length || 0} views</span>
+                            </div>
                           </div>
 
                           {false && (

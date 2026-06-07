@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Calendar, Clock, MapPin, Tag, User, Trash2, BookOpen, AlertCircle, PlusCircle, Pencil, Globe, ExternalLink, Sparkles } from 'lucide-react';
+import { Calendar, Clock, MapPin, Tag, User, Trash2, BookOpen, AlertCircle, PlusCircle, Pencil, Globe, ExternalLink, Sparkles, Eye } from 'lucide-react';
 import { DayOfWeek, Activity } from '../types';
 import GlassCard from './GlassCard';
 import { formatTimerange } from '../lib/time';
@@ -332,6 +332,11 @@ export default function Scheduler({
                           >
                             {activity.category}
                           </span>
+
+                          <div className="flex items-center gap-1 text-[11px] text-slate-500 font-mono" title="Unique views">
+                            <Eye className="w-3.5 h-3.5 text-slate-600 shrink-0" />
+                            <span>{activity.viewedBy?.length || 0} views</span>
+                          </div>
 
                           {/* Delivery Type mode labels */}
                           {isOnline ? (

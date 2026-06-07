@@ -99,6 +99,10 @@
         },
         "departmentId": {
           "type": "string"
+        },
+        "viewedBy": {
+          "type": "array",
+          "description": "List of student matric numbers who have viewed this activity schedule"
         }
       },
       "required": ["id", "title", "timeStart", "timeEnd", "day", "location", "courseCode", "category", "createdBy"]
@@ -134,6 +138,10 @@
         },
         "departmentId": {
           "type": "string"
+        },
+        "viewedBy": {
+          "type": "array",
+          "description": "List of student matric numbers who have viewed this assignment/deadline"
         }
       },
       "required": ["id", "title", "courseCode", "dueDate", "isCompleted", "createdBy"]
@@ -172,6 +180,10 @@
         },
         "linkText": {
           "type": "string"
+        },
+        "viewedBy": {
+          "type": "array",
+          "description": "List of student matric numbers who have viewed this broadcast/announcement"
         }
       },
       "required": ["id", "title", "content", "date", "priority", "author"]
@@ -292,6 +304,10 @@
         },
         "departmentId": {
           "type": "string"
+        },
+        "views": {
+          "type": "number",
+          "description": "Total non-unique views of the syllabus PDF"
         }
       },
       "required": ["id", "title", "pdfUrl", "uploadedAt"]
@@ -327,6 +343,10 @@
         },
         "departmentId": {
           "type": "string"
+        },
+        "views": {
+          "type": "number",
+          "description": "Total non-unique watches or views of this YouTube lecture"
         }
       },
       "required": ["id", "title", "videoUrl", "videoId", "thumbnailUrl", "uploadedAt"]

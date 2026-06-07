@@ -494,11 +494,18 @@ export default function Announcements({
 
                       {/* Footer containing author & delete key for rep */}
                       <div className="flex items-center justify-between border-t border-slate-900/40 pt-3 mt-4 text-xs">
-                        <div className="flex items-center gap-1.5 text-slate-400">
-                          <User className="w-4 h-4 text-indigo-400 shrink-0" />
-                          <span className="font-medium text-slate-300 font-sans">
-                            Author: <span className="text-indigo-300">{ann.author}</span>
-                          </span>
+                        <div className="flex items-center gap-4 text-slate-400">
+                          <div className="flex items-center gap-1.5">
+                            <User className="w-4 h-4 text-indigo-400 shrink-0" />
+                            <span className="font-medium text-slate-300 font-sans">
+                              Author: <span className="text-indigo-300">{ann.author}</span>
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-mono" title="Unique views">
+                            <Eye className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                            <span>{ann.viewedBy?.length || 0} views</span>
+                          </div>
                         </div>
 
                         {/* Rep action deletion tool */}

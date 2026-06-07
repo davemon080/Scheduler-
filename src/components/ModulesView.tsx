@@ -13,7 +13,9 @@ import {
   deleteDoc, 
   query, 
   orderBy,
-  collectionGroup
+  collectionGroup,
+  updateDoc,
+  increment
 } from 'firebase/firestore';
 import { 
   BookOpen, 
@@ -244,49 +246,42 @@ export default function ModulesView({
     return () => unsubscribe();
   }, []);
 
-  // 1b. Track individual PDF counts across all courses dynamically for the course cards in real-time
+  // 1b. Track individual PDF and YouTube video counts across all courses dynamically in real-time
   useEffect(() => {
-    try {
-      const unsubscribe = onSnapshot(collectionGroup(db, 'pdf-modules'), (snap) => {
-        const counts: {[courseId: string]: number} = {};
-        snap.forEach((docSnap) => {
-          const parts = docSnap.ref.path.split('/');
-          if (parts.length >= 3 && parts[0] === 'courses') {
-            const courseId = parts[1];
-            counts[courseId] = (counts[courseId] || 0) + 1;
-          }
-        });
-        setPdfCounts(counts);
-      }, (err) => {
-        console.warn('Silent warning: Failed to sync collectionGroup PDF totals.', err);
-      });
-      return () => unsubscribe();
-    } catch (e) {
-      console.error('collectionGroup subscript error', e);
-    }
-  }, []);
+    if (courses.length === 0) return;
 
-  // 1c. Track individual YouTube video counts across all courses dynamically in real-time
-  useEffect(() => {
-    try {
-      const unsubscribe = onSnapshot(collectionGroup(db, 'videos'), (snap) => {
-        const counts: {[courseId: string]: number} = {};
-        snap.forEach((docSnap) => {
-          const parts = docSnap.ref.path.split('/');
-          if (parts.length >= 3 && parts[0] === 'courses') {
-            const courseId = parts[1];
-            counts[courseId] = (counts[courseId] || 0) + 1;
-          }
-        });
-        setVideoCounts(counts);
+    const unsubscribes: (() => void)[] = [];
+
+    courses.forEach((course) => {
+      // Direct subcollection listener for pdf-modules to bypass collectionGroup permission limits
+      const pdfsRef = collection(db, 'courses', course.id, 'pdf-modules');
+      const unsubPdfs = onSnapshot(pdfsRef, (snap) => {
+        setPdfCounts(prev => ({
+          ...prev,
+          [course.id]: snap.size
+        }));
       }, (err) => {
-        console.warn('Silent warning: Failed to sync collectionGroup video totals.', err);
+        console.warn(`Failed to sync PDF total for ${course.courseCode}`, err);
       });
-      return () => unsubscribe();
-    } catch (e) {
-      console.error('collectionGroup video subscript error', e);
-    }
-  }, []);
+      unsubscribes.push(unsubPdfs);
+
+      // Direct subcollection listener for videos to bypass collectionGroup permission limits
+      const videosRef = collection(db, 'courses', course.id, 'videos');
+      const unsubVideos = onSnapshot(videosRef, (snap) => {
+        setVideoCounts(prev => ({
+          ...prev,
+          [course.id]: snap.size
+        }));
+      }, (err) => {
+        console.warn(`Failed to sync video total for ${course.courseCode}`, err);
+      });
+      unsubscribes.push(unsubVideos);
+    });
+
+    return () => {
+      unsubscribes.forEach(unsub => unsub());
+    };
+  }, [courses]);
 
   // 2. Fetch modules for selected course
   useEffect(() => {
@@ -345,6 +340,33 @@ export default function ModulesView({
 
     return () => unsubscribe();
   }, [selectedCourse]);
+
+  // Increment non-unique PDF views count
+  const handlePdfView = async (moduleId: string) => {
+    if (!selectedCourse?.id) return;
+    try {
+      const docRef = doc(db, 'courses', selectedCourse.id, 'pdf-modules', moduleId);
+      await updateDoc(docRef, {
+        views: increment(1)
+      });
+    } catch (err) {
+      console.warn('Failed to increment PDF view count silently:', err);
+    }
+  };
+
+  // Set active video and increment non-unique watch/views count
+  const handleVideoPlay = async (video: any) => {
+    setActiveVideo(video);
+    if (!selectedCourse?.id) return;
+    try {
+      const docRef = doc(db, 'courses', selectedCourse.id, 'videos', video.id);
+      await updateDoc(docRef, {
+        views: increment(1)
+      });
+    } catch (err) {
+      console.warn('Failed to increment video view count silently:', err);
+    }
+  };
 
   // 3. Handle Add Course
   const handleCreateCourse = async (e: React.FormEvent) => {
@@ -906,9 +928,16 @@ export default function ModulesView({
                             </p>
                           )}
                           
-                          <div className="flex items-center gap-1 text-[8px] font-mono text-slate-500">
-                            <Calendar className="w-2.5 h-2.5 text-slate-600" />
-                            <span>Uploaded {new Date(mod.uploadedAt).toLocaleDateString()}</span>
+                          <div className="flex items-center gap-2 text-[8px] font-mono text-slate-500 flex-wrap">
+                            <div className="flex items-center gap-1">
+                              <Calendar className="w-2.5 h-2.5 text-slate-600" />
+                              <span>Uploaded {new Date(mod.uploadedAt).toLocaleDateString()}</span>
+                            </div>
+                            <span>•</span>
+                            <div className="flex items-center gap-1 text-slate-400 font-semibold" title="Total PDF downloads or views">
+                              <Eye className="w-2.5 h-2.5 text-indigo-500/80" />
+                              <span>{mod.views || 0} views</span>
+                            </div>
                           </div>
                         </div>
 
@@ -928,6 +957,7 @@ export default function ModulesView({
                             href={getPDFViewUrl(mod.pdfUrl)}
                             target="_blank"
                             rel="noreferrer"
+                            onClick={() => handlePdfView(mod.id)}
                             className="p-1.5 bg-indigo-500/10 hover:bg-indigo-500/25 border border-indigo-500/20 rounded-lg text-indigo-400 transition-all flex items-center justify-center cursor-pointer pointer-events-auto outline-none"
                             title="View PDF"
                             id={`view-pdf-btn-${mod.id}`}
@@ -1025,7 +1055,7 @@ export default function ModulesView({
                     {courseVideos.map((video) => (
                       <div
                         key={video.id}
-                        onClick={() => setActiveVideo(video)}
+                        onClick={() => handleVideoPlay(video)}
                         className={`p-2 bg-slate-900/30 hover:bg-slate-900/50 border rounded-xl transition-all text-left flex items-start gap-3 relative group cursor-pointer ${
                           activeVideo?.id === video.id ? 'border-amber-500/40 bg-slate-950/40 shadow-sm' : 'border-slate-850 hover:border-slate-800'
                         }`}
@@ -1067,12 +1097,17 @@ export default function ModulesView({
                             {video.description || `YouTube reference cover for ${selectedCourse.courseCode}`}
                           </p>
                           
-                          <div className="flex items-center gap-1.5 text-[8px] font-mono text-slate-500">
+                          <div className="flex items-center gap-1.5 text-[8px] font-mono text-slate-500 flex-wrap">
                             <span className="px-1 py-0.2 bg-indigo-500/10 text-indigo-400 border border-indigo-500/10 font-bold rounded">
                               {selectedCourse.courseCode}
                             </span>
                             <span>•</span>
                             <span>Shared {video.uploadedAt ? new Date(video.uploadedAt).toLocaleDateString() : 'N/A'}</span>
+                            <span>•</span>
+                            <span className="flex items-center gap-0.5 text-slate-400 font-semibold inline-flex" title="Lecture total watchers count">
+                              <Eye className="w-2.5 h-2.5 text-indigo-500/80 shrink-0" />
+                              <span>{video.views || 0} views</span>
+                            </span>
                           </div>
                         </div>
                       </div>
