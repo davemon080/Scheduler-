@@ -174,6 +174,10 @@ export default function Scheduler({
     }
   };
 
+  const daysOfWeekIndex = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const currentDayName = daysOfWeekIndex[now.getDay()];
+  const isTodaySelected = daySelected === currentDayName;
+
   return (
     <div className="space-y-6">
       {/* Horizontally aligned weekdays at the top */}
@@ -198,6 +202,7 @@ export default function Scheduler({
             const isSelected = daySelected === day;
             const count = getCountForDay(day);
             const shortName = day.substring(0, 3);
+            const isDayToday = day === currentDayName;
 
             return (
               <button
@@ -210,8 +215,8 @@ export default function Scheduler({
                     : 'glassmorphism border border-slate-800/40 text-slate-300 hover:text-slate-100 hover:border-slate-700/80 bg-slate-950/40'
                 }`}
               >
-                <span className="text-[10px] font-mono font-bold tracking-tight opacity-70">
-                  {shortName.toUpperCase()}
+                <span className={`text-[10px] font-mono font-bold tracking-tight ${isDayToday ? 'text-amber-400 opacity-100 font-extrabold' : 'opacity-70'}`}>
+                  {isDayToday ? 'TODAY' : shortName.toUpperCase()}
                 </span>
                 
                 <span className="text-xl font-display font-black tracking-tight mt-0.5">
@@ -251,8 +256,13 @@ export default function Scheduler({
       {/* Activities Feed Header */}
       <div className="flex justify-between items-center px-1">
         <div>
-          <h2 className="text-2xl font-display font-bold text-slate-100 tracking-tight">
-            {daySelected} Activities
+          <h2 className="text-2xl font-display font-bold text-slate-100 tracking-tight flex items-center gap-2">
+            <span>{isTodaySelected ? "Today's" : daySelected} Activities</span>
+            {isTodaySelected && (
+              <span className="text-[10px] font-mono font-bold bg-amber-500/15 text-amber-400 border border-amber-500/25 px-2 py-0.5 rounded-md uppercase tracking-wider">
+                Today
+              </span>
+            )}
           </h2>
           <p className="text-xs text-slate-400 font-sans mt-0.5">
             {activeDayActivities.length} scheduled event{activeDayActivities.length === 1 ? '' : 's'} today

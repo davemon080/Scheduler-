@@ -104,21 +104,29 @@ export default function Deadlines({
   return (
     <div className="space-y-6">
       {/* Header section */}
-      <div className="flex justify-between items-end px-1">
+      <div className="flex flex-row justify-between items-center px-1 gap-4">
         <div>
           <h2 className="text-2xl font-display font-bold text-slate-100 tracking-tight">
             Assignment Deadlines
           </h2>
-          <p className="text-xs text-slate-400 font-sans mt-0.5">
+          <p className="text-xs text-slate-400 font-sans mt-0.5 hidden sm:block">
             Keep track of course worksheets, homeworks, and quizzes
           </p>
         </div>
         {pendingCount > 0 && (
-          <div className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 px-3 py-1 rounded-full font-semibold animate-pulse">
-            {pendingCount} Pending
+          <div className="flex items-center gap-2 bg-amber-500/10 text-amber-400 border border-amber-500/20 px-3 py-1.5 rounded-xl font-mono text-xs font-bold shadow-lg shadow-amber-500/5 tracking-tight shrink-0 select-none">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+            </span>
+            <Clock className="w-3.5 h-3.5 text-amber-500" />
+            <span>{pendingCount} PENDING</span>
           </div>
         )}
       </div>
+      <p className="text-xs text-slate-400 font-sans px-1 block sm:hidden -mt-4">
+        Keep track of course worksheets, homeworks, and quizzes
+      </p>
 
       {/* Tabs Filter Header */}
       <div className="flex p-1 rounded-xl bg-slate-950/70 border border-slate-800/80 max-w-sm">

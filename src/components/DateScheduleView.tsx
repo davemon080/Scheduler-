@@ -170,8 +170,16 @@ export default function DateScheduleView({
             <Calendar className="w-6 h-6" />
           </div>
           <div>
-            <h2 className="text-xl font-display font-black text-slate-100 tracking-tight leading-none">
-              {selectedDate.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })}
+            <h2 className="text-xl font-display font-black text-slate-100 tracking-tight leading-none flex items-center flex-wrap gap-2">
+              <span>
+                {getLocalYYYYMMDD(selectedDate) === getLocalYYYYMMDD(new Date()) ? 'Today, ' : ''}
+                {selectedDate.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })}
+              </span>
+              {getLocalYYYYMMDD(selectedDate) === getLocalYYYYMMDD(new Date()) && (
+                <span className="text-[10px] font-mono font-bold bg-amber-500/15 text-amber-400 border border-amber-500/25 px-2 py-0.5 rounded-md uppercase tracking-wider">
+                  Today
+                </span>
+              )}
             </h2>
             <p className="text-xs text-slate-400 font-sans mt-1">
               {totalCount} total schedules configured on this date
