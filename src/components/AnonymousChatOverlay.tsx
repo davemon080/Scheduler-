@@ -75,12 +75,31 @@ const ALIAS_BG_GLOWS = [
   "bg-rose-500/10 border-rose-500/20 shadow-[0_0_8px_rgba(244,63,94,0.15)]"
 ];
 
+const memoryStorage: Record<string, string> = {};
+
+const safeLocalStorage = {
+  getItem: (key: string): string | null => {
+    try {
+      return localStorage.getItem(key);
+    } catch (e) {
+      return memoryStorage[key] || null;
+    }
+  },
+  setItem: (key: string, value: string): void => {
+    try {
+      localStorage.setItem(key, value);
+    } catch (e) {
+      memoryStorage[key] = value;
+    }
+  }
+};
+
 // Helper to determine deterministic alias based on student matriculation identifier
 export function getOrGenerateAlias(matricNumber: string) {
   if (!matricNumber) return { name: "Anonymous Student", color: "text-indigo-400", bgGlow: ALIAS_BG_GLOWS[7], gradient: BALLOON_GRADIENTS[0] };
   
   const savedKey = `ich100l_anon_alias_${matricNumber}`;
-  const stored = localStorage.getItem(savedKey);
+  const stored = safeLocalStorage.getItem(savedKey);
   if (stored) {
     try {
       return JSON.parse(stored);
@@ -108,13 +127,13 @@ export function getOrGenerateAlias(matricNumber: string) {
     gradient: BALLOON_GRADIENTS[balloonIndex]
   };
   
-  localStorage.setItem(savedKey, JSON.stringify(aliasData));
+  safeLocalStorage.setItem(savedKey, JSON.stringify(aliasData));
   return aliasData;
 }
 
 // Low-overhead synthesizer dual chord sound notifier
 export const playNotificationSound = () => {
-  const soundPref = localStorage.getItem('ich100l_chat_sound_enabled') !== 'false';
+  const soundPref = safeLocalStorage.getItem('ich100l_chat_sound_enabled') !== 'false';
   if (!soundPref) return;
 
   try {
@@ -154,7 +173,7 @@ export default function AnonymousChatOverlay({
   const [isSending, setIsSending] = useState(false);
   const [activeViewersCount, setActiveViewersCount] = useState(1);
   const [unviewedCount, setUnviewedCount] = useState(0);
-  const [soundEnabled, setSoundEnabled] = useState(() => localStorage.getItem('ich100l_chat_sound_enabled') !== 'false');
+  const [soundEnabled, setSoundEnabled] = useState(() => safeLocalStorage.getItem('ich100l_chat_sound_enabled') !== 'false');
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -177,34 +196,37 @@ export default function AnonymousChatOverlay({
       // Sort chronologically client side
       list.sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
 
-      // Trigger notification audio and update unread count if eligible
-      setMessages((prev) => {
-        if (prev.length > 0 && list.length > prev.length) {
-          const lastMsg = list[list.length - 1];
-          // If message is from someone else, chime
-          if (lastMsg.alias !== localAlias.name) {
-            playNotificationSound();
-            
-            // Increment unviewed if currently closed
-            if (!isOpen) {
-              setUnviewedCount((c) => c + 1);
-            }
-          }
-        }
-        return list;
-      });
+      setMessages(list);
     }, (err) => {
       console.warn('[Chat] Messages fetch failure:', err);
     });
 
     return () => unsub();
-  }, [db, isEligible, localAlias.name, isOpen]);
+  }, [db, isEligible]);
+
+  const lastMsgCountRef = useRef(0);
+
+  // Monitor incoming real-time messages safely to trigger notification sound/badge
+  useEffect(() => {
+    if (!isEligible) return;
+    
+    if (messages.length > lastMsgCountRef.current) {
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg && lastMsg.alias !== localAlias.name && lastMsgCountRef.current > 0) {
+        playNotificationSound();
+        if (!isOpen) {
+          setUnviewedCount((c) => c + 1);
+        }
+      }
+    }
+    lastMsgCountRef.current = messages.length;
+  }, [messages, localAlias.name, isOpen, isEligible]);
 
   // Keep track of unread count and reset once opened
   useEffect(() => {
     if (isOpen) {
       setUnviewedCount(0);
-      localStorage.setItem('ich100l_last_viewed_chat_timestamp', new Date().toISOString());
+      safeLocalStorage.setItem('ich100l_last_viewed_chat_timestamp', new Date().toISOString());
       
       // Auto scroll to latest on load
       setTimeout(() => {
@@ -298,7 +320,7 @@ export default function AnonymousChatOverlay({
   const toggleSound = () => {
     const nextSound = !soundEnabled;
     setSoundEnabled(nextSound);
-    localStorage.setItem('ich100l_chat_sound_enabled', String(nextSound));
+    safeLocalStorage.setItem('ich100l_chat_sound_enabled', String(nextSound));
   };
 
   return (
