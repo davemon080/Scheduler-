@@ -188,7 +188,11 @@ export default function AnonymousChatOverlay({
   useEffect(() => {
     if (!db || !isEligible) return;
 
-    const qMessages = query(collection(db, 'anonymous_chat_messages'), limit(80));
+    const qMessages = query(
+      collection(db, 'anonymous_chat_messages'),
+      orderBy('timestamp', 'desc'),
+      limit(80)
+    );
     const unsub = onSnapshot(qMessages, (snapshot) => {
       const list: any[] = [];
       snapshot.forEach((doc) => {
@@ -362,67 +366,62 @@ export default function AnonymousChatOverlay({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[1000] bg-[#020617]/90 backdrop-blur-xl flex justify-center items-stretch"
+            className="fixed inset-0 z-[1000] bg-slate-950/25 backdrop-blur-[6px] flex justify-center items-center p-4 sm:p-6"
           >
             {/* Ambient Background Glow Decors */}
-            <div className="absolute top-0 inset-x-0 h-40 bg-gradient-to-b from-indigo-500/10 to-transparent pointer-events-none" />
             <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[300px] h-[300px] rounded-full bg-violet-500/5 blur-[120px] pointer-events-none" />
 
-            <div className="max-w-md w-full mx-auto flex flex-col h-full bg-[#030712]/40 relative border-x border-slate-950/80">
+            <div className="max-w-md w-full h-[85vh] sm:h-[80vh] flex flex-col bg-slate-950/45 backdrop-blur-xl border border-white/10 rounded-3xl shadow-[0_24px_50px_rgba(0,0,0,0.6)] relative overflow-hidden">
               
-              {/* Header Panel */}
-              <header className="p-4 bg-slate-950/60 backdrop-blur-md border-b border-slate-900/60 flex items-center justify-between shrink-0">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center shadow-[0_0_12px_rgba(99,102,241,0.1)]">
-                    <MessageSquare className="w-5 h-5" />
-                  </div>
-                  <div className="text-left">
-                    <h2 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-205">Anonymous Lounge</h2>
-                    <div className="flex items-center gap-1.5 mt-0.5 font-sans">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                      <span className="text-[10px] text-slate-400 font-medium">
-                        {activeViewersCount === 1 ? '1 student active' : `${activeViewersCount} live students reading`}
+              {/* Glassy Title Container */}
+              <div className="p-4 pb-2 shrink-0">
+                <div id="anonymous-chat-header-glass" className="p-3.5 px-4 rounded-2xl bg-white/[0.04] border border-white/10 backdrop-blur-md flex items-center justify-between shadow-md">
+                  <div className="flex items-center gap-3">
+                    <div className="relative flex items-center justify-center">
+                      <span className="absolute inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500 opacity-75 animate-ping" />
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                    </div>
+                    <div className="flex items-baseline gap-2.5">
+                      <h2 className="text-sm font-bold tracking-wider text-white font-sans lowercase">anonymous</h2>
+                      <span className="text-[10px] font-mono text-slate-350 bg-white/5 border border-white/10 px-2 py-0.5 rounded-full flex items-center gap-1 shrink-0 select-none">
+                        <Users className="w-2.5 h-2.5 text-indigo-400" />
+                        <span>{activeViewersCount} active</span>
                       </span>
                     </div>
                   </div>
-                </div>
 
-                <div className="flex items-center gap-1">
-                  {/* WhatsApp style unread notifier bar indicator */}
-                  {unviewedCount > 0 && (
-                    <span className="text-[8px] font-mono uppercase bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-bold px-2 py-1 rounded">
-                      New
-                    </span>
-                  )}
-                  
-                  {/* Sound Notifier toggle button */}
-                  <button
-                    onClick={toggleSound}
-                    className="p-2 bg-slate-900/60 hover:bg-slate-850/80 border border-slate-800 text-slate-400 hover:text-slate-100 rounded-xl transition-all cursor-pointer outline-none"
-                    title={soundEnabled ? "Mute New Messages" : "Unmute New Messages"}
-                  >
-                    {soundEnabled ? (
-                      <Volume2 className="w-4 h-4 text-emerald-400" />
-                    ) : (
-                      <VolumeX className="w-4 h-4 text-rose-400" />
-                    )}
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    {/* Sound Notifier toggle button */}
+                    <button
+                      onClick={toggleSound}
+                      className="p-2 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-slate-200 rounded-xl transition-all cursor-pointer outline-none"
+                      title={soundEnabled ? "Mute Chat" : "Unmute Chat"}
+                    >
+                      {soundEnabled ? (
+                        <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
+                      ) : (
+                        <VolumeX className="w-3.5 h-3.5 text-rose-450" />
+                      )}
+                    </button>
 
-                  <button
-                    onClick={() => setIsOpen(false)}
-                    className="p-2 bg-slate-900/60 hover:bg-slate-850/80 border border-slate-800 text-slate-400 hover:text-slate-100 rounded-xl transition-all cursor-pointer outline-none"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+                    <button
+                      onClick={() => setIsOpen(false)}
+                      className="p-2 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-white rounded-xl transition-all cursor-pointer outline-none"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
-              </header>
+              </div>
 
               {/* Chat Sub-Notice Banner */}
-              <div className="bg-indigo-500/5 border-b border-indigo-500/10 p-2 px-4 flex items-center gap-2 select-none">
-                <AlertTriangle className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-                <p className="text-[9.5px] text-slate-400 font-sans leading-normal text-left">
-                  Your stable handle is <strong className={`${localAlias.color} font-mono font-bold`}>{localAlias.name}</strong>. Real student matrices and emails are strictly hidden. Stay civil!
-                </p>
+              <div className="px-4 py-1 select-none shrink-0">
+                <div className="bg-indigo-500/10 border border-indigo-500/20 p-2.5 px-3.5 rounded-xl flex items-center gap-2">
+                  <AlertTriangle className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                  <p className="text-[9.5px] text-slate-300 font-sans leading-normal text-left">
+                    Your handle is <strong className={`${localAlias.color} font-mono font-bold`}>{localAlias.name}</strong>. Student ID & email are kept hidden.
+                  </p>
+                </div>
               </div>
 
               {/* Messages Body */}
@@ -445,7 +444,7 @@ export default function AnonymousChatOverlay({
                 ) : (
                   <>
                     <div className="flex justify-center select-none pt-1">
-                      <span className="bg-slate-900/60 border border-slate-850/80 text-[8px] font-mono text-slate-500 uppercase tracking-widest px-3 py-1 rounded">
+                      <span className="bg-white/5 border border-white/10 text-[8px] font-mono text-slate-450 uppercase tracking-widest px-3 py-1 rounded">
                         🔒 CHAT ENCRYPTED & ANONYMIZED
                       </span>
                     </div>
@@ -462,8 +461,8 @@ export default function AnonymousChatOverlay({
                       // Deterministic selection of bubble styles
                       const msgAliasInfo = getOrGenerateAlias(msg.alias);
                       const balloonStyle = isOwner 
-                        ? 'bg-indigo-600/20 border-indigo-500/30 text-white rounded-br-none ml-auto' 
-                        : 'bg-slate-900/40 border-slate-800/80 text-slate-100 rounded-bl-none';
+                        ? 'bg-indigo-600/35 border-indigo-400/30 text-white rounded-br-none ml-auto shadow-[0_4px_12px_rgba(99,102,241,0.2)]' 
+                        : 'bg-white/[0.04] border-white/5 text-slate-100 rounded-bl-none shadow-sm';
 
                       return (
                         <div 
