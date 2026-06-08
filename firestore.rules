@@ -102,7 +102,8 @@ service cloud.firestore {
 
     // Feedbacks collection
     match /feedbacks/{feedbackId} {
-      allow read, write: if isValidId(feedbackId);
+      allow read: if true;
+      allow write: if isValidId(feedbackId);
     }
 
     // Departments collection
@@ -113,12 +114,20 @@ service cloud.firestore {
 
     // Traffic analytics collection
     match /traffic/{trafficId} {
-      allow read, write: if isValidId(trafficId);
+      allow read: if true;
+      allow write: if isValidId(trafficId);
     }
 
     // Course Rep logs collection
     match /course_rep_logs/{logId} {
-      allow read, write: if isValidId(logId);
+      allow read: if true;
+      allow create, update, delete: if isValidId(logId);
+    }
+
+    // In-App Messages collection
+    match /in_app_messages/{msgId} {
+      allow read: if true;
+      allow create, update, delete: if isValidId(msgId);
     }
   }
 }
