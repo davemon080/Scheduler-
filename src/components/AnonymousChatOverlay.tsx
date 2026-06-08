@@ -378,76 +378,71 @@ export default function AnonymousChatOverlay({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[1000] bg-slate-950/25 backdrop-blur-[12px] flex flex-col h-screen w-screen text-white relative overflow-hidden"
+            className="fixed inset-0 z-[1000] bg-slate-950/70 backdrop-blur-[24px] h-screen w-screen text-white relative overflow-hidden"
           >
             {/* Ambient Background Glow Decors */}
-            <div className="absolute top-1/4 left-1/4 w-[400px] h-[400px] rounded-full bg-violet-500/5 blur-[150px] pointer-events-none" />
-            <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] rounded-full bg-indigo-500/5 blur-[150px] pointer-events-none" />
+            <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] rounded-full bg-violet-600/10 blur-[180px] pointer-events-none" />
+            <div className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] rounded-full bg-indigo-600/10 blur-[180px] pointer-events-none" />
 
-            {/* Custom Interactive Tabs Display (No physical header) */}
-            <div className="w-full max-w-7xl mx-auto px-6 pt-6 sm:px-8 shrink-0 flex items-center justify-between select-none relative z-10">
-              
-              {/* Section Brand Card */}
-              <div className="p-1 px-4 py-2.5 rounded-2xl bg-white/[0.03] border border-white/10 backdrop-blur-md shadow-md flex items-center gap-2.5 transition-all">
-                <span className="relative flex h-2.5 w-2.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-indigo-500" />
-                </span>
-                <span className="text-sm font-black tracking-widest text-indigo-300 font-sans lowercase">anonymous</span>
-              </div>
-
-              {/* Stats & Controls Panel */}
-              <div className="flex items-center gap-2">
-                {/* Number of Active Users Card */}
-                <div className="px-3.5 py-2.5 rounded-2xl bg-white/[0.03] border border-white/10 backdrop-blur-md shadow-md flex items-center gap-2 font-mono text-xs text-slate-350">
-                  <Users className="w-4 h-4 text-indigo-400" />
-                  <span>{activeViewersCount} active minds</span>
-                </div>
-
-                {/* Sound Toggle */}
-                <button
-                  onClick={toggleSound}
-                  className="p-2.5 bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 text-slate-400 hover:text-slate-200 rounded-2xl transition-all cursor-pointer outline-none backdrop-blur-md shadow-md"
-                  title={soundEnabled ? "Mute New Thoughts" : "Unmute New Thoughts"}
-                >
-                  {soundEnabled ? (
-                    <Volume2 className="w-4 h-4 text-emerald-400" />
-                  ) : (
-                    <VolumeX className="w-4 h-4 text-rose-455" />
-                  )}
-                </button>
-
-                {/* Glass Close Dock */}
-                <button
-                  onClick={() => setIsOpen(false)}
-                  className="p-2.5 bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 text-slate-300 hover:text-white rounded-2xl transition-all cursor-pointer outline-none backdrop-blur-md shadow-md"
-                  title="Close Anymous Lounge"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
+            {/* Overlaid Section Brand (absolute top-left) */}
+            <div className="absolute top-6 left-6 sm:left-10 z-20 select-none flex items-center gap-2.5 bg-white/[0.03] border border-white/10 backdrop-blur-md px-4 py-2 rounded-2xl shadow-lg">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-indigo-505" />
+              </span>
+              <span className="text-xs font-black tracking-widest text-indigo-300 font-sans lowercase">anonymous</span>
             </div>
 
-            {/* Dynamic Board Scroller (Masonry Card feel) */}
+            {/* Overlaid Stats & Controls Panel (absolute top-right) */}
+            <div className="absolute top-6 right-6 sm:right-10 z-20 select-none flex items-center gap-2">
+              {/* Number of Active Users Card */}
+              <div className="px-3.5 py-2.5 rounded-2xl bg-white/[0.03] border border-white/10 backdrop-blur-md shadow-md flex items-center gap-2 font-mono text-xs text-slate-350">
+                <Users className="w-4 h-4 text-indigo-400" />
+                <span>{activeViewersCount} active minds</span>
+              </div>
+
+              {/* Sound Toggle */}
+              <button
+                onClick={toggleSound}
+                className="p-2.5 bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 text-slate-400 hover:text-slate-200 rounded-2xl transition-all cursor-pointer outline-none backdrop-blur-md shadow-md"
+                title={soundEnabled ? "Mute New Thoughts" : "Unmute New Thoughts"}
+              >
+                {soundEnabled ? (
+                  <Volume2 className="w-4 h-4 text-emerald-455" />
+                ) : (
+                  <VolumeX className="w-4 h-4 text-rose-455" />
+                )}
+              </button>
+
+              {/* Glass Close Dock */}
+              <button
+                onClick={() => setIsOpen(false)}
+                className="p-2.5 bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 text-slate-300 hover:text-white rounded-2xl transition-all cursor-pointer outline-none backdrop-blur-md shadow-md"
+                title="Close Anonymous Lounge"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Dynamic Full-Page Board Scroller (Overlay Layout covering entire container) */}
             <div 
               ref={scrollContainerRef}
-              className="flex-1 overflow-y-auto px-6 py-8 sm:px-8 max-w-7xl mx-auto w-full space-y-8 no-scrollbar relative z-10"
+              className="absolute inset-0 overflow-y-auto px-6 pt-24 pb-36 sm:px-10 max-w-7xl mx-auto w-full no-scrollbar z-10"
             >
               {messages.length === 0 ? (
-                <div className="h-[60vh] flex flex-col justify-center items-center text-center p-6 space-y-4 select-none">
+                <div className="h-[75vh] flex flex-col justify-center items-center text-center p-6 space-y-4 select-none">
                   <div className="w-16 h-16 rounded-3xl bg-white/[0.02] border border-white/10 text-slate-500 flex items-center justify-center shadow-lg">
                     <AlertTriangle className="w-8 h-8 text-indigo-400" />
                   </div>
                   <div>
-                    <h4 className="text-sm font-mono font-bold text-slate-300 tracking-wider">ANONYMOUS THOUGHT BOARD</h4>
+                    <h4 className="text-sm font-mono font-bold text-slate-305 tracking-wider">ANONYMOUS THOUGHT BOARD</h4>
                     <p className="text-xs text-slate-400 font-sans mt-2 max-w-sm leading-relaxed">
                       Express freely. Post chemistry questions, questions with total secrecy. No names, no profiling, absolute zero-knowledge privacy.
                     </p>
                   </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5 items-stretch pb-10">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 items-stretch pb-10">
                   {messages.map((msg, index) => {
                     const msgDate = msg.timestamp ? new Date(msg.timestamp) : new Date();
                     const displayTime = msgDate.toLocaleTimeString([], {
@@ -465,16 +460,18 @@ export default function AnonymousChatOverlay({
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.3, delay: Math.min(index * 0.04, 0.4) }}
                         key={msg.id || index}
-                        className={`p-5 rounded-2xl border flex flex-col justify-between group transition-all duration-300 backdrop-blur-md ${getCardStyle(index)}`}
+                        className={`p-6 sm:p-8 min-h-[220px] sm:min-h-[260px] rounded-3xl border flex flex-col justify-between group transition-all duration-300 backdrop-blur-md text-center ${getCardStyle(index)}`}
                       >
-                        {/* Display content dynamically as BOLD */}
-                        <div className="text-sm sm:text-base font-bold font-sans tracking-wide leading-relaxed text-slate-100 break-words flex-1 mb-4 select-text">
-                          {msg.content}
+                        {/* Display content dynamically centered and much bolder/bigger */}
+                        <div className="flex-1 flex items-center justify-center py-4">
+                          <p className="text-base sm:text-lg md:text-xl font-bold font-sans tracking-wide leading-relaxed text-slate-50 break-words select-text text-center w-full">
+                            {msg.content}
+                          </p>
                         </div>
 
                         {/* Card metadata (just clean timestamp) */}
-                        <div className="flex items-center justify-between border-t border-white/5 pt-3 mt-1 text-[10px] font-mono text-slate-450 select-none">
-                          <span className="text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full text-[9px] font-sans font-medium">
+                        <div className="flex items-center justify-between border-t border-white/5 pt-3 mt-2 text-[10px] font-mono text-slate-400 select-none">
+                          <span className="text-indigo-405 bg-indigo-500/10 px-2.5 py-0.5 rounded-full text-[9px] font-sans font-medium">
                             thought
                           </span>
                           <span>
@@ -489,36 +486,34 @@ export default function AnonymousChatOverlay({
               )}
             </div>
 
-            {/* Float Fixed Glassy Bottom Input Bar */}
-            <footer className="p-6 shrink-0 bg-gradient-to-t from-slate-950 via-slate-950/80 to-transparent relative z-10">
-              <div className="max-w-xl mx-auto w-full">
-                <form 
-                  onSubmit={handleSendMessage}
-                  className="p-1.5 rounded-2xl border border-white/10 bg-slate-950/70 backdrop-blur-md flex items-center gap-2 pl-4 focus-within:border-indigo-500/50 transition-colors shadow-2xl"
+            {/* Overlaid Float Glassy Bottom Input Bar (absolute bottom center) */}
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-3rem)] max-w-xl z-20 flex flex-col items-center">
+              <form 
+                onSubmit={handleSendMessage}
+                className="w-full p-1.5 rounded-2xl border border-white/10 bg-slate-950/70 backdrop-blur-md flex items-center gap-2 pl-4 focus-within:border-indigo-500/50 transition-colors shadow-2xl"
+              >
+                <input
+                  type="text"
+                  required
+                  value={inputText}
+                  disabled={isSending}
+                  onChange={(e) => setInputText(e.target.value)}
+                  placeholder="Post a thought anonymously..."
+                  className="flex-1 bg-transparent text-xs sm:text-sm text-white border-none outline-none focus:ring-0 placeholder:text-slate-500 font-sans outline-0 py-2.5"
+                />
+                
+                <button
+                  type="submit"
+                  disabled={isSending || !inputText.trim()}
+                  className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-violet-600 hover:from-indigo-400 hover:to-violet-500 text-white flex items-center justify-center shrink-0 transition-all hover:scale-105 active:scale-95 disabled:opacity-30 disabled:scale-100 cursor-pointer outline-none border-0 shadow-md"
                 >
-                  <input
-                    type="text"
-                    required
-                    value={inputText}
-                    disabled={isSending}
-                    onChange={(e) => setInputText(e.target.value)}
-                    placeholder="Post a thought anonymously..."
-                    className="flex-1 bg-transparent text-xs sm:text-sm text-white border-none outline-none focus:ring-0 placeholder:text-slate-500 font-sans outline-0 py-2.5"
-                  />
-                  
-                  <button
-                    type="submit"
-                    disabled={isSending || !inputText.trim()}
-                    className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-violet-600 hover:from-indigo-400 hover:to-violet-500 text-white flex items-center justify-center shrink-0 transition-all hover:scale-105 active:scale-95 disabled:opacity-30 disabled:scale-100 cursor-pointer outline-none border-0 shadow-md"
-                  >
-                    <Send className="w-4 h-4" />
-                  </button>
-                </form>
-                <p className="text-[10px] text-center text-slate-500 font-sans mt-3 tracking-wide">
-                  🔒 Zero identifying keys saved. Be polite, share wisdom.
-                </p>
-              </div>
-            </footer>
+                  <Send className="w-4 h-4" />
+                </button>
+              </form>
+              <p className="text-[10px] text-center text-slate-500 font-sans mt-3 tracking-wide">
+                🔒 Zero identifying keys saved. Be polite, share wisdom.
+              </p>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
