@@ -485,9 +485,40 @@
         }
       },
       "required": ["id", "repName", "repMatric", "action", "targetType", "targetId", "targetName", "timestamp"]
+    },
+    "AnonymousChatMessage": {
+      "title": "AnonymousChatMessage",
+      "description": "Individually submitted student anonymous chat message",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "content": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "alias": { "type": "string" },
+        "color": { "type": "string" }
+      },
+      "required": ["id", "content", "timestamp", "alias"]
+    },
+    "AnonymousChatViewer": {
+      "title": "AnonymousChatViewer",
+      "description": "Individual live viewer record to calculate active count",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "lastActive": { "type": "string" }
+      },
+      "required": ["id", "lastActive"]
     }
   },
   "firestore": {
+    "anonymous_chat_messages/{messageId}": {
+      "schema": "AnonymousChatMessage",
+      "description": "Stream of anonymous chat room messages"
+    },
+    "anonymous_chat_viewers/{viewerId}": {
+      "schema": "AnonymousChatViewer",
+      "description": "Live active viewer presence heartbeats"
+    },
     "course_rep_logs/{logId}": {
       "schema": "CourseRepLog",
       "description": "Chronological audit log of all changes made by Course Representatives"

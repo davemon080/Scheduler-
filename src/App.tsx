@@ -36,6 +36,7 @@ import CalendarView from './components/CalendarView';
 import FeedbackPage from './components/FeedbackPage';
 import DateScheduleView from './components/DateScheduleView';
 import AIDashboardPanel from './components/AIDashboardPanel';
+import AnonymousChatOverlay from './components/AnonymousChatOverlay';
 
 function getMondayOfCurrentWeek(): string {
   const now = new Date();
@@ -472,6 +473,33 @@ export default function App() {
   // Listen to subscription status in real-time
   const [subStatus, setSubStatus] = useState<'loading' | 'active' | 'inactive'>('loading');
   const [deletedActivitiesTrigger, setDeletedActivitiesTrigger] = useState<number>(0);
+
+  // Listen to live anonymous chat configuration
+  const [chatConfig, setChatConfig] = useState<{
+    enabled: boolean;
+    visibility: 'paid' | 'all';
+  }>({
+    enabled: false,
+    visibility: 'paid'
+  });
+
+  useEffect(() => {
+    if (!db) return;
+    try {
+      const unsub = onSnapshot(doc(db, 'system-config', 'anonymous-chat'), (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          setChatConfig({
+            enabled: data.enabled ?? false,
+            visibility: data.visibility ?? 'paid'
+          });
+        }
+      });
+      return () => unsub();
+    } catch (err) {
+      console.error('[Chat] config sync fail:', err);
+    }
+  }, [db]);
 
   useEffect(() => {
     const handleDeletedActivitiesUpdated = () => {
@@ -2934,6 +2962,15 @@ export default function App() {
         initialSource={aiPanelSource}
         deadlines={visibleDeadlines}
         isCourseRep={isCourseRep}
+      />
+
+      {/* Global Interactive Anonymous Chat Subpanel & Trigger */}
+      <AnonymousChatOverlay
+        db={db}
+        currentUser={currentUser}
+        subStatus={subStatus}
+        isCourseRep={isCourseRep}
+        chatConfig={chatConfig}
       />
     </div>
   );

@@ -40,6 +40,14 @@ export default function AdminDashboard({
     amount: 1000
   });
   const [isUpdatingSemester, setIsUpdatingSemester] = useState(false);
+  const [chatConfig, setChatConfig] = useState<{
+    enabled: boolean;
+    visibility: 'paid' | 'all';
+  }>({
+    enabled: false,
+    visibility: 'paid'
+  });
+  const [isUpdatingChat, setIsUpdatingChat] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -601,7 +609,7 @@ export default function AdminDashboard({
     return () => unsubscribe();
   }, []);
 
-  // Listen to live semester configuration
+    // Listen to live semester configuration
   useEffect(() => {
     let unsubscribe = () => {};
     if (db) {
@@ -620,6 +628,29 @@ export default function AdminDashboard({
         });
       } catch (err) {
         console.error('[Admin] Live semester config subscription failed:', err);
+      }
+    }
+    return () => unsubscribe();
+  }, []);
+
+  // Listen to live anonymous chat configuration
+  useEffect(() => {
+    let unsubscribe = () => {};
+    if (db) {
+      try {
+        unsubscribe = onSnapshot(doc(db, 'system-config', 'anonymous-chat'), (snap) => {
+          if (snap.exists()) {
+            const data = snap.data();
+            setChatConfig({
+              enabled: data.enabled ?? false,
+              visibility: data.visibility ?? 'paid'
+            });
+          }
+        }, (err) => {
+          console.warn('[Admin] Live chat config fetch fallback:', err);
+        });
+      } catch (err) {
+        console.error('[Admin] Live chat config subscription failed:', err);
       }
     }
     return () => unsubscribe();
@@ -1328,6 +1359,57 @@ export default function AdminDashboard({
       setPushUpdateError(err.message || 'Network error while broadcasting live push updates.');
     } finally {
       setIsSendingPushUpdate(false);
+    }
+  };
+
+  // Anonymous Chat Configuration Functions
+  const handleToggleChat = async (enabledVal: boolean) => {
+    if (!db) return;
+    setIsUpdatingChat(true);
+    setActionFeedback(null);
+    try {
+      await setDoc(doc(db, 'system-config', 'anonymous-chat'), {
+        enabled: enabledVal,
+        visibility: chatConfig.visibility,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+      setActionFeedback({
+        type: 'success',
+        message: enabledVal ? 'Anonymous chat sub-panel has been activated on student portals!' : 'Anonymous chat has been successfully deactivated.'
+      });
+    } catch (err: any) {
+      console.error('[Admin] Failed toggling chat:', err);
+      setActionFeedback({
+        type: 'error',
+        message: 'Could not sync chat status with online database.'
+      });
+    } finally {
+      setIsUpdatingChat(false);
+    }
+  };
+
+  const handleUpdateChatVisibility = async (visibilityVal: 'paid' | 'all') => {
+    if (!db) return;
+    setIsUpdatingChat(true);
+    setActionFeedback(null);
+    try {
+      await setDoc(doc(db, 'system-config', 'anonymous-chat'), {
+        enabled: chatConfig.enabled,
+        visibility: visibilityVal,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+      setActionFeedback({
+        type: 'success',
+        message: `Chat access has been restricted to: ${visibilityVal === 'paid' ? 'Paid student users only' : 'All registered student users'}.`
+      });
+    } catch (err: any) {
+      console.error('[Admin] Failed updating chat visibility:', err);
+      setActionFeedback({
+        type: 'error',
+        message: 'Could not configure chat access restrictions.'
+      });
+    } finally {
+      setIsUpdatingChat(false);
     }
   };
 
@@ -2883,6 +2965,57 @@ export default function AdminDashboard({
                       <span>End Semester</span>
                     </button>
                   </div>
+                </div>
+              </GlassCard>
+
+              {/* Card: Anonymous Chat Portal Control */}
+              <GlassCard className="p-6 bg-slate-950/60 border-slate-900 relative">
+                <div className="absolute top-0 right-0 w-24 h-1 bg-gradient-to-l from-indigo-500 via-purple-500 to-pink-500" />
+                
+                <h4 className="text-xs font-mono font-bold text-slate-200 uppercase tracking-wider mb-2 flex items-center gap-1.5 select-none">
+                  <MessageSquare className="w-4 h-4 text-indigo-400" /> Anonymous Chat Control
+                </h4>
+                <p className="text-[10px] text-slate-400 mb-4 font-sans leading-normal">
+                  Toggle student anonymous chat access. When activated, a floating subpanel allows real-time interactive chats dynamically overlayed on profile terminals.
+                </p>
+
+                <div className="space-y-4">
+                  <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-900 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-slate-400 font-sans">Chat Subpanel Status:</span>
+                      <button
+                        type="button"
+                        disabled={isUpdatingChat}
+                        onClick={() => handleToggleChat(!chatConfig.enabled)}
+                        className={`text-[9.5px] font-mono font-bold px-3 py-1 rounded-full border cursor-pointer select-none transition-all duration-300 outline-none ${
+                          chatConfig.enabled
+                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25 shadow-[0_0_10px_rgba(16,185,129,0.15)] animate-pulse'
+                            : 'bg-rose-500/10 text-rose-400 border-rose-500/25'
+                        }`}
+                      >
+                        {chatConfig.enabled ? '● ACTIVE / SHOWN' : '○ DEACTIVATED'}
+                      </button>
+                    </div>
+
+                    <div className="h-px bg-slate-900" />
+
+                    <div className="space-y-1 text-left">
+                      <label className="text-[9.5px] font-mono font-bold uppercase tracking-wider text-slate-450 block">Who can access the chat?</label>
+                      <select
+                        disabled={isUpdatingChat}
+                        value={chatConfig.visibility}
+                        onChange={(e) => handleUpdateChatVisibility(e.target.value as 'paid' | 'all')}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-sans cursor-pointer"
+                      >
+                        <option value="paid">Paid Access Students Only (Admin Verified)</option>
+                        <option value="all">Everyone (All Registered Students)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <p className="text-[10.5px] text-slate-500 leading-relaxed font-sans italic text-left">
+                    * The dynamic badge will show the live number of concurrent viewer heartbeats. Sound updates run on new incoming room alerts.
+                  </p>
                 </div>
               </GlassCard>
 
