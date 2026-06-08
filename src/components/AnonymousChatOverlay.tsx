@@ -176,6 +176,59 @@ export default function AnonymousChatOverlay({
   const [unviewedCount, setUnviewedCount] = useState(0);
   const [soundEnabled, setSoundEnabled] = useState(() => safeLocalStorage.getItem('ich100l_chat_sound_enabled') !== 'false');
 
+  const [typingUsers, setTypingUsers] = useState<string[]>([]);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastWriteTypingRef = useRef<number>(0);
+
+  const updateTypingStatus = async (isTyping: boolean) => {
+    if (!db || !currentUser?.matricNumber || !isEligible) return;
+    const typingDocId = getSafeDocId(currentUser.matricNumber);
+    const typingDocRef = doc(db, 'anonymous_chat_typing', typingDocId);
+    try {
+      if (isTyping) {
+        const now = Date.now();
+        if (now - lastWriteTypingRef.current > 4000) {
+          lastWriteTypingRef.current = now;
+          await setDoc(typingDocRef, {
+            id: currentUser.matricNumber,
+            alias: localAlias.name,
+            isTyping: true,
+            lastActive: new Date().toISOString()
+          }, { merge: true });
+        }
+      } else {
+        lastWriteTypingRef.current = 0;
+        await setDoc(typingDocRef, {
+          isTyping: false,
+          lastActive: new Date().toISOString()
+        }, { merge: true });
+      }
+    } catch (err) {
+      console.warn('[Chat] Update typing status failed:', err);
+    }
+  };
+
+  const handleInputChange = (text: string) => {
+    setInputText(text);
+
+    if (text.trim().length > 0) {
+      updateTypingStatus(true);
+
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+
+      typingTimeoutRef.current = setTimeout(() => {
+        updateTypingStatus(false);
+      }, 4000);
+    } else {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      updateTypingStatus(false);
+    }
+  };
+
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -191,7 +244,7 @@ export default function AnonymousChatOverlay({
     const qMessages = query(
       collection(db, 'anonymous_chat_messages'),
       orderBy('timestamp', 'desc'),
-      limit(80)
+      limit(100)
     );
     const unsub = onSnapshot(qMessages, (snapshot) => {
       const list: any[] = [];
@@ -199,7 +252,11 @@ export default function AnonymousChatOverlay({
         list.push({ ...doc.data(), id: doc.id });
       });
       // Sort chronologically client side
-      list.sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
+      list.sort((a, b) => {
+        const timeA = a.timestamp ? Date.parse(a.timestamp) : 0;
+        const timeB = b.timestamp ? Date.parse(b.timestamp) : 0;
+        return timeA - timeB;
+      });
 
       setMessages(list);
     }, (err) => {
@@ -208,6 +265,46 @@ export default function AnonymousChatOverlay({
 
     return () => unsub();
   }, [db, isEligible]);
+
+  // Subscribe to live typing indicators
+  useEffect(() => {
+    if (!db || !isEligible) return;
+
+    const queryTyping = collection(db, 'anonymous_chat_typing');
+    const unsubTyping = onSnapshot(queryTyping, (snapshot) => {
+      const activeTypists: string[] = [];
+      const now = Date.now();
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        const isNotLocal = data.alias !== localAlias.name;
+        const isActive = data.lastActive ? (now - Date.parse(data.lastActive) < 8000) : false;
+        
+        if (data.isTyping && isNotLocal && isActive && data.alias) {
+          activeTypists.push(data.alias);
+        }
+      });
+      setTypingUsers(activeTypists);
+    }, (err) => {
+      console.warn('[Chat] Typing subscription failed:', err);
+    });
+
+    return () => {
+      unsubTyping();
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+    };
+  }, [db, isEligible, localAlias.name]);
+
+  // Reset typing indicator when modal closes or unmounts
+  useEffect(() => {
+    if (!isOpen) {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      updateTypingStatus(false);
+    }
+  }, [isOpen]);
 
   const lastMsgCountRef = useRef(0);
 
@@ -307,6 +404,11 @@ export default function AnonymousChatOverlay({
     setIsSending(true);
     const sendingText = inputText.trim();
     setInputText('');
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+    updateTypingStatus(false);
 
     try {
       await addDoc(collection(db, 'anonymous_chat_messages'), {
@@ -493,6 +595,20 @@ export default function AnonymousChatOverlay({
                 )}
               </div>
 
+              {/* Typing indicator */}
+              {typingUsers.length > 0 && (
+                <div className="px-5 py-2 flex items-center gap-2 text-[10px] font-mono text-slate-400 select-none bg-white/[0.02] border-t border-white/5 shrink-0">
+                  <div className="flex gap-1 items-center justify-center py-1">
+                    <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                    <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                    <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" />
+                  </div>
+                  <span>
+                    {typingUsers.join(', ')} {typingUsers.length === 1 ? 'is' : 'are'} typing...
+                  </span>
+                </div>
+              )}
+
               {/* Float Fixed Glassy Bottom Input Bar */}
               <footer className="p-4 shrink-0 bg-gradient-to-t from-slate-950 via-[#030712]/50 to-transparent">
                 <form 
@@ -504,7 +620,7 @@ export default function AnonymousChatOverlay({
                     required
                     value={inputText}
                     disabled={isSending}
-                    onChange={(e) => setInputText(e.target.value)}
+                    onChange={(e) => handleInputChange(e.target.value)}
                     placeholder="Ask anonymously..."
                     className="flex-1 bg-transparent text-xs text-white border-none outline-none focus:ring-0 placeholder:text-slate-600 font-sans outline-0 py-2"
                   />

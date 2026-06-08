@@ -508,6 +508,18 @@
         "lastActive": { "type": "string" }
       },
       "required": ["id", "lastActive"]
+    },
+    "AnonymousChatTyping": {
+      "title": "AnonymousChatTyping",
+      "description": "Live typing status indicators for anonymous chat users",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "alias": { "type": "string" },
+        "isTyping": { "type": "boolean" },
+        "lastActive": { "type": "string" }
+      },
+      "required": ["id", "alias", "isTyping", "lastActive"]
     }
   },
   "firestore": {
@@ -518,6 +530,10 @@
     "anonymous_chat_viewers/{viewerId}": {
       "schema": "AnonymousChatViewer",
       "description": "Live active viewer presence heartbeats"
+    },
+    "anonymous_chat_typing/{typingId}": {
+      "schema": "AnonymousChatTyping",
+      "description": "Live typing states of users inside anonymous chat"
     },
     "course_rep_logs/{logId}": {
       "schema": "CourseRepLog",

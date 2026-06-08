@@ -141,5 +141,11 @@ service cloud.firestore {
       allow read: if true;
       allow create, update, delete: if isValidId(viewerId);
     }
+
+    // Anonymous chat typing
+    match /anonymous_chat_typing/{typingId} {
+      allow read: if true;
+      allow create, update, delete: if isValidId(typingId);
+    }
   }
 }
