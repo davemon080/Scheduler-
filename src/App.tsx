@@ -15,7 +15,7 @@ import {
   DEFAULT_ANNOUNCEMENTS
 } from './data/defaultData';
 
-import { db, cleanData, getSafeDocId } from './lib/firebase';
+import { db, cleanData, getSafeDocId, logCourseRepActivity } from './lib/firebase';
 import { collection, onSnapshot, doc, setDoc, deleteDoc, getDocs, getDoc, collectionGroup, query, where, updateDoc, arrayUnion, increment } from 'firebase/firestore';
 
 // Custom subcomponents
@@ -1120,71 +1120,23 @@ export default function App() {
         }
 
         if (needsWipe) {
-          console.log('entering a new week! wipe all previous week documents...');
+          console.log('entering a new week! keeping all previous week records live...');
           
-          // Partition Activities: Only move past week's items to the local bin, keep future ones live
-          const actSnap = await getDocs(collection(db, 'activities'));
-          for (const d of actSnap.docs) {
-            const data = { ...d.data(), id: d.id } as Activity;
-            
-            let belongsToPast = false;
-            if (data.date) {
-              const actMonday = getMondayOfDateString(data.date);
-              if (actMonday < currentMonday) {
-                belongsToPast = true;
-              }
-            } else {
-              // Repeating schedules without custom Date are considered part of the last week's layout, so we roll them to bin
-              belongsToPast = true;
-            }
-
-            if (belongsToPast) {
-              registerDeletedActivityLocally(data);
-              await deleteDoc(doc(db, 'activities', d.id));
-            }
-          }
-
-          // Partition Deadlines: Only delete deadlines from previous weeks
-          const dlSnap = await getDocs(collection(db, 'deadlines'));
-          for (const d of dlSnap.docs) {
-            const data = d.data() as Deadline;
-            if (data.dueDate) {
-              const dlMonday = getMondayOfDateString(data.dueDate);
-              if (dlMonday < currentMonday) {
-                await deleteDoc(doc(db, 'deadlines', d.id));
-              }
-            }
-          }
-
-          // Partition Announcements: Only delete old announcements from previous weeks
-          const annSnap = await getDocs(collection(db, 'announcements'));
-          for (const d of annSnap.docs) {
-            const data = d.data() as Announcement;
-            if (data.date) {
-              const annMonday = getMondayOfDateString(data.date);
-              if (annMonday < currentMonday) {
-                await deleteDoc(doc(db, 'announcements', d.id));
-              }
-            }
-          }
-
           await setDoc(configRef, { 
             lastMonday: currentMonday, 
             wipedAt: new Date().toISOString() 
           });
-          console.log('Automated week rollover database sweep completed.');
+          console.log('Automated week rollover recorded without any deletions.');
         }
 
-        // Anti-Seeding Rule: Ensure all default seeded mock datas are COMPLETELY wiped from Firestore
+        // Anti-Seeding Rule: Ensure default seeded mock datas for schedules and deadlines are cleaned, but broadcasts (announcements) are completely preserved as they are never automatic deleted.
         for (const act of DEFAULT_ACTIVITIES) {
           await deleteDoc(doc(db, 'activities', act.id));
         }
         for (const dl of DEFAULT_DEADLINES) {
           await deleteDoc(doc(db, 'deadlines', dl.id));
         }
-        for (const ann of DEFAULT_ANNOUNCEMENTS) {
-          await deleteDoc(doc(db, 'announcements', ann.id));
-        }
+        // Broadcasts (announcements) must never be deleted automatically from the database.
 
       } catch (err) {
         console.warn('Auto-rollover and cleaning failed:', err);
@@ -1818,6 +1770,7 @@ export default function App() {
   // Automatic unique view count tracking for Announcements, Deadlines, and Activities
   useEffect(() => {
     if (!currentUser || !currentUser.matricNumber) return;
+    if (subStatus !== 'active') return;
     const userMatric = currentUser.matricNumber;
 
     if (activeTab === 'announcements' && visibleAnnouncements.length > 0) {
@@ -1837,10 +1790,11 @@ export default function App() {
         }
       });
     }
-  }, [activeTab, visibleAnnouncements, currentUser]);
+  }, [activeTab, visibleAnnouncements, currentUser, subStatus]);
 
   useEffect(() => {
     if (!currentUser || !currentUser.matricNumber) return;
+    if (subStatus !== 'active') return;
     const userMatric = currentUser.matricNumber;
 
     if (activeTab === 'deadlines' && visibleDeadlines.length > 0) {
@@ -1860,10 +1814,11 @@ export default function App() {
         }
       });
     }
-  }, [activeTab, visibleDeadlines, currentUser]);
+  }, [activeTab, visibleDeadlines, currentUser, subStatus]);
 
   useEffect(() => {
     if (!currentUser || !currentUser.matricNumber) return;
+    if (subStatus !== 'active') return;
     const userMatric = currentUser.matricNumber;
 
     if ((activeTab === 'schedule' || activeTab === 'calendar' || activeTab === 'date-schedule') && visibleActivities.length > 0) {
@@ -1884,7 +1839,7 @@ export default function App() {
         }
       });
     }
-  }, [activeTab, visibleActivities, currentUser]);
+  }, [activeTab, visibleActivities, currentUser, subStatus]);
 
   const visiblePendingDeadlinesCount = useMemo(() => {
     if (!currentUser) return 0;
@@ -1940,10 +1895,21 @@ export default function App() {
     const act: Activity = {
       ...newAct,
       id: actId,
-      createdBy: currentUser?.matricNumber || 'Rep'
+      createdBy: currentUser?.matricNumber || 'Rep',
+      createdWeekMonday: getMondayOfCurrentWeek()
     } as any;
     try {
       await setDoc(doc(db, 'activities', actId), cleanData(act));
+      await logCourseRepActivity(
+        'add',
+        'schedule',
+        actId,
+        `${act.courseCode}: ${act.title}`,
+        currentUser?.name || 'Course Rep',
+        currentUser?.matricNumber || 'Rep',
+        act.departmentId || matchedDepartment?.id,
+        `Added class schedule for ${act.day} ${act.timeStart}-${act.timeEnd}`
+      );
     } catch (err) {
       console.error('Error saving activity:', err);
     }
@@ -1972,7 +1938,19 @@ export default function App() {
   const handleUpdateActivity = async (id: string, updatedAct: Omit<Activity, 'id' | 'createdBy'> & { departmentId?: string }) => {
     try {
       const docRef = doc(db, 'activities', id);
-      await setDoc(docRef, cleanData({ ...updatedAct, id, createdBy: currentUser?.matricNumber || 'Rep' }), { merge: true });
+      const existing = activities.find(a => a.id === id);
+      const createdWeekMonday = existing?.createdWeekMonday || getMondayOfCurrentWeek();
+      await setDoc(docRef, cleanData({ ...updatedAct, id, createdBy: currentUser?.matricNumber || 'Rep', createdWeekMonday }), { merge: true });
+      await logCourseRepActivity(
+        'edit',
+        'schedule',
+        id,
+        `${updatedAct.courseCode}: ${updatedAct.title}`,
+        currentUser?.name || 'Course Rep',
+        currentUser?.matricNumber || 'Rep',
+        updatedAct.departmentId || matchedDepartment?.id,
+        `Updated scheduled details for ${updatedAct.day} ${updatedAct.timeStart}-${updatedAct.timeEnd}`
+      );
     } catch (err) {
       console.error('Error updating activity:', err);
     }
@@ -1988,6 +1966,18 @@ export default function App() {
     }
     try {
       await deleteDoc(doc(db, 'activities', id));
+      if (actToDelete) {
+        await logCourseRepActivity(
+          'delete',
+          'schedule',
+          id,
+          `${actToDelete.courseCode}: ${actToDelete.title}`,
+          currentUser?.name || 'Course Rep',
+          currentUser?.matricNumber || 'Rep',
+          actToDelete.departmentId || matchedDepartment?.id,
+          `Removed schedule entry for ${actToDelete.day}`
+        );
+      }
     } catch (err) {
       console.error('Error deleting activity:', err);
     }
@@ -2025,6 +2015,16 @@ export default function App() {
     };
     try {
       await setDoc(doc(db, 'deadlines', dlId), cleanData(dl));
+      await logCourseRepActivity(
+        'add',
+        'deadline',
+        dlId,
+        `${dl.courseCode}: ${dl.title}`,
+        currentUser?.name || 'Course Rep',
+        currentUser?.matricNumber || 'Rep',
+        dl.departmentId || matchedDepartment?.id,
+        `Created assignment deadline due by ${dl.dueDate}`
+      );
     } catch (err) {
       console.error('Error adding deadline:', err);
     }
@@ -2051,8 +2051,21 @@ export default function App() {
   };
 
   const handleDeleteDeadline = async (id: string) => {
+    const dlToDelete = deadlines.find((d) => d.id === id);
     try {
       await deleteDoc(doc(db, 'deadlines', id));
+      if (dlToDelete) {
+        await logCourseRepActivity(
+          'delete',
+          'deadline',
+          id,
+          `${dlToDelete.courseCode}: ${dlToDelete.title}`,
+          currentUser?.name || 'Course Rep',
+          currentUser?.matricNumber || 'Rep',
+          dlToDelete.departmentId || matchedDepartment?.id,
+          `Deleted assignment checklist item`
+        );
+      }
     } catch (err) {
       console.error('Error deleting deadline:', err);
     }
@@ -2072,6 +2085,16 @@ export default function App() {
     };
     try {
       await setDoc(doc(db, 'announcements', annId), cleanData(ann));
+      await logCourseRepActivity(
+        'add',
+        'announcement',
+        annId,
+        ann.title,
+        currentUser?.name || 'Course Rep',
+        currentUser?.matricNumber || 'Rep',
+        ann.departmentId || matchedDepartment?.id,
+        `Broadcasted announcement under priority ${ann.priority}`
+      );
     } catch (err) {
       console.error('Error adding announcement:', err);
     }
@@ -2098,8 +2121,21 @@ export default function App() {
   };
 
   const handleDeleteAnnouncement = async (id: string) => {
+    const annToDelete = announcements.find((a) => a.id === id);
     try {
       await deleteDoc(doc(db, 'announcements', id));
+      if (annToDelete) {
+        await logCourseRepActivity(
+          'delete',
+          'announcement',
+          id,
+          annToDelete.title,
+          currentUser?.name || 'Course Rep',
+          currentUser?.matricNumber || 'Rep',
+          annToDelete.departmentId || matchedDepartment?.id,
+          `Deleted broadcast message`
+        );
+      }
     } catch (err) {
       console.error('Error deleting announcement:', err);
     }
@@ -2165,6 +2201,7 @@ export default function App() {
           <ModulesView
             isCourseRep={isCourseRep}
             userMatric={currentUser?.matricNumber || ''}
+            repName={currentUser?.name || 'Course Rep'}
             matchedDepartment={matchedDepartment}
             departments={departments}
             onGetAIHelp={(source) => {

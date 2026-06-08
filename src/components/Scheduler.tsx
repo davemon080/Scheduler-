@@ -116,6 +116,19 @@ export default function Scheduler({
     }
   };
 
+  const getMondayOfWeekDate = (d: Date): string => {
+    const dateCopy = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const day = dateCopy.getDay();
+    const diff = dateCopy.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(dateCopy.setDate(diff));
+    const yyyy = monday.getFullYear();
+    const mm = String(monday.getMonth() + 1).padStart(2, '0');
+    const dd = String(monday.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const mondayOfCurrent = getMondayOfWeekDate(now);
+
   const getYYYYMMDDForDay = (day: DayOfWeek) => {
     const dayIndex = DAYS_OF_WEEK.indexOf(day);
     const currentDayOfWeek = now.getDay();
@@ -133,6 +146,9 @@ export default function Scheduler({
   // 2. Followed by newest added/latest schedules descending by ID
   const activeDayActivities = activities
     .filter((act) => {
+      if (act.createdWeekMonday && act.createdWeekMonday > mondayOfCurrent) {
+        return false;
+      }
       if (act.date) {
         return act.date === getYYYYMMDDForDay(daySelected);
       }
@@ -152,6 +168,9 @@ export default function Scheduler({
   // Count activities for each day to render beautiful markers
   const getCountForDay = (day: DayOfWeek) => {
     return activities.filter((act) => {
+      if (act.createdWeekMonday && act.createdWeekMonday > mondayOfCurrent) {
+        return false;
+      }
       if (act.date) {
         return act.date === getYYYYMMDDForDay(day);
       }
@@ -390,9 +409,9 @@ export default function Scheduler({
                             </span>
                           </div>
 
-                          <div className="flex items-center gap-2 text-slate-400 min-w-0">
-                            <MapPin className="w-3.5 h-3.5 text-rose-400/80 shrink-0" />
-                            <span className="text-xs text-slate-300 truncate font-sans">
+                          <div className="flex items-start gap-2 text-slate-400">
+                            <MapPin className="w-3.5 h-3.5 text-rose-400/80 shrink-0 mt-0.5" />
+                            <span className="text-xs text-slate-300 font-sans break-words whitespace-normal leading-normal">
                               {activity.location}
                             </span>
                           </div>

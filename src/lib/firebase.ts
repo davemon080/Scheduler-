@@ -8,13 +8,16 @@ import {
   initializeFirestore, 
   doc, 
   getDoc, 
+  getDocFromServer,
   setDoc, 
   getDocs, 
   collection, 
   onSnapshot, 
   deleteDoc, 
   updateDoc,
-  query
+  query,
+  enableMultiTabIndexedDbPersistence,
+  enableIndexedDbPersistence
 } from 'firebase/firestore';
 import appletConfig from '../../firebase-applet-config.json';
 
@@ -32,16 +35,39 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 export const db = initializeFirestore(app, {
-  experimentalForceLongPolling: true
+  experimentalForceLongPolling: true,
+  experimentalAutoDetectLongPolling: true
 }, appletConfig.firestoreDatabaseId);
+
+// Enable offline persistence for seamless local state fallback
+if (typeof window !== 'undefined') {
+  enableMultiTabIndexedDbPersistence(db)
+    .catch((err) => {
+      if (err.code === 'failed-precondition') {
+        // Multiple tabs open, persistence can only be enabled in one tab at a time.
+        console.warn('Firestore multi-tab persistence precondition failed, falling back to cached state.');
+      } else if (err.code === 'unimplemented') {
+        // The current browser does not support all features required for multi-tab persistence, try single tab
+        enableIndexedDbPersistence(db).catch((e) => {
+          console.warn('Firestore single-tab persistence failed to initialize: ', e.message);
+        });
+      } else {
+        console.warn('Firestore persistence error: ', err.message);
+      }
+    });
+}
 
 // Test connection on boot to verify correct synchronization
 async function testConnection() {
   try {
-    await getDoc(doc(db, 'system-config', 'app-branding'));
-    console.log("Firebase connection initialized.");
+    await getDocFromServer(doc(db, 'system-config', 'app-branding'));
+    console.log("Firebase server connection initialized.");
   } catch (error) {
-    console.log("Firebase offline cache mode enabled.");
+    if (error instanceof Error && error.message.includes('the client is offline')) {
+      console.warn("Please check your Firebase configuration or internet connection.");
+    } else {
+      console.log("Firebase operating in offline/cached mode.");
+    }
   }
 }
 testConnection();
@@ -100,5 +126,49 @@ export function cleanData<T>(obj: T): T {
 export function getSafeDocId(id: string): string {
   if (!id) return '';
   return id.trim().replace(/\//g, '-');
+}
+
+export interface CourseRepActivityLog {
+  id: string;
+  repName: string;
+  repMatric: string;
+  action: 'add' | 'edit' | 'delete';
+  targetType: 'schedule' | 'deadline' | 'announcement' | 'course' | 'pdf' | 'video';
+  targetId: string;
+  targetName: string;
+  timestamp: string; // ISO String
+  details?: string;
+  departmentId?: string;
+}
+
+export async function logCourseRepActivity(
+  action: 'add' | 'edit' | 'delete',
+  targetType: 'schedule' | 'deadline' | 'announcement' | 'course' | 'pdf' | 'video',
+  targetId: string,
+  targetName: string,
+  repName: string,
+  repMatric: string,
+  departmentId?: string,
+  details?: string
+) {
+  const logId = `log-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+  const logDoc: CourseRepActivityLog = {
+    id: logId,
+    repName,
+    repMatric,
+    action,
+    targetType,
+    targetId,
+    targetName,
+    timestamp: new Date().toISOString(),
+    details,
+    departmentId
+  };
+  try {
+    await setDoc(doc(db, 'course_rep_logs', logId), cleanData(logDoc));
+    console.log(`Course rep log recorded: ${action} ${targetType} - ${targetName}`);
+  } catch (err) {
+    console.warn('Failed to write course rep log info:', err);
+  }
 }
 

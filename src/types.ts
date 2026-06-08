@@ -58,6 +58,7 @@ export interface Activity {
   details?: string; // log details
   viewedBy?: string[];
   viewsCount?: number;
+  createdWeekMonday?: string; // the Monday of the week it was added to prevent showing on past weeks
 }
 
 export interface ActivityRecord extends Activity {}

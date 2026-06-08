@@ -78,28 +78,20 @@ export default function DateScheduleView({
   const weekdayName = WEEKDAYS[selectedDate.getDay()] as DayOfWeek;
 
   const mondayOfCell = getMondayOfWeekDate(selectedDate);
-  const mondayOfCurrent = getMondayOfWeekDate(new Date());
 
   let activeSchedules: Activity[] = [];
   let deletedSchedules: Activity[] = [];
 
-  if (mondayOfCell < mondayOfCurrent) {
-    // PAST WEEK! Load from archived bin local cache only
-    deletedSchedules = deletedActivities.filter(act => {
-      if (act.date) {
-        return act.date === dateStr;
-      }
-      return act.day === weekdayName;
-    }).sort((a, b) => a.timeStart.localeCompare(b.timeStart));
-  } else {
-    // CURRENT WEEK or FUTURE WEEK! Load live active schedules only (never in the bin)
-    activeSchedules = activities.filter(act => {
-      if (act.date) {
-        return act.date === dateStr;
-      }
-      return act.day === weekdayName;
-    }).sort((a, b) => a.timeStart.localeCompare(b.timeStart));
-  }
+  // All weeks (past, present, future) load live active schedules from database!
+  activeSchedules = activities.filter(act => {
+    if (act.createdWeekMonday && act.createdWeekMonday > mondayOfCell) {
+      return false;
+    }
+    if (act.date) {
+      return act.date === dateStr;
+    }
+    return act.day === weekdayName;
+  }).sort((a, b) => a.timeStart.localeCompare(b.timeStart));
 
   const totalCount = activeSchedules.length + deletedSchedules.length;
 
@@ -258,9 +250,9 @@ export default function DateScheduleView({
                                 <span className="font-mono text-slate-300">{formatTimerange(activity.timeStart, activity.timeEnd)}</span>
                               </span>
                               <span className="hidden sm:inline text-slate-700">•</span>
-                              <span className="flex items-center gap-1 truncate">
-                                <MapPin className="w-3.5 h-3.5 text-rose-500/80" />
-                                <span className="truncate">{activity.location}</span>
+                              <span className="flex items-start gap-1">
+                                <MapPin className="w-3.5 h-3.5 text-rose-500/80 shrink-0 mt-0.5" />
+                                <span className="break-words whitespace-normal leading-normal">{activity.location}</span>
                               </span>
                             </div>
                           </div>
@@ -353,9 +345,9 @@ export default function DateScheduleView({
                             <span className="font-mono">{formatTimerange(activity.timeStart, activity.timeEnd)}</span>
                           </span>
                           <span className="hidden sm:inline text-slate-800">•</span>
-                          <span className="flex items-center gap-1 truncate">
-                            <MapPin className="w-3.5 h-3.5 text-slate-705" />
-                            <span className="truncate">{activity.location}</span>
+                          <span className="flex items-start gap-1">
+                            <MapPin className="w-3.5 h-3.5 text-slate-705 shrink-0 mt-0.5" />
+                            <span className="break-words whitespace-normal leading-normal">{activity.location}</span>
                           </span>
                         </div>
                       </div>

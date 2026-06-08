@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { db, cleanData } from '../lib/firebase';
+import { db, cleanData, logCourseRepActivity } from '../lib/firebase';
 import { 
   collection, 
   onSnapshot, 
@@ -74,6 +74,7 @@ export interface PdfModule {
 interface ModulesViewProps {
   isCourseRep: boolean;
   userMatric: string;
+  repName?: string;
   matchedDepartment?: any;
   departments?: any[];
   onGetAIHelp?: (source: { type: 'pdf'; id: string; name: string; details?: string }) => void;
@@ -173,6 +174,7 @@ export function extractYoutubeId(url: string): string | null {
 export default function ModulesView({
   isCourseRep,
   userMatric,
+  repName,
   matchedDepartment,
   departments = [],
   onGetAIHelp
@@ -401,6 +403,16 @@ export default function ModulesView({
       };
 
       await setDoc(doc(db, 'courses', courseId), cleanData(newCourse));
+      await logCourseRepActivity(
+        'add',
+        'course',
+        courseId,
+        newCourse.courseCode,
+        repName || 'Course Rep',
+        userMatric,
+        newCourse.departmentId,
+        `Created course folder: ${newCourse.courseCode} - ${newCourse.title}`
+      );
       
       // Reset inputs
       setNewCode('');
@@ -513,6 +525,16 @@ export default function ModulesView({
       };
 
       await setDoc(doc(db, 'courses', selectedCourse.id, 'pdf-modules', moduleId), cleanData(newModule));
+      await logCourseRepActivity(
+        'add',
+        'pdf',
+        moduleId,
+        newModule.title,
+        repName || 'Course Rep',
+        userMatric,
+        newModule.departmentId || selectedCourse.departmentId,
+        `Uploaded PDF document/handout under ${selectedCourse.courseCode}`
+      );
 
       // Trigger background push notification for new PDF
       try {
@@ -604,6 +626,16 @@ export default function ModulesView({
       };
 
       await setDoc(doc(db, 'courses', selectedCourse.id, 'videos', id), cleanData(payload));
+      await logCourseRepActivity(
+        'add',
+        'video',
+        id,
+        videoTitle,
+        repName || 'Course Rep',
+        userMatric,
+        payload.departmentId || selectedCourse.departmentId,
+        `Linked lecture video under ${selectedCourse.courseCode}`
+      );
 
       // Trigger standard background push notification
       try {
@@ -1366,8 +1398,21 @@ export default function ModulesView({
               <button
                 type="button"
                 onClick={async () => {
+                  const moduleToDelete = currentModules.find(m => m.id === deleteConfirmModId);
                   try {
                     await deleteDoc(doc(db, 'courses', selectedCourse!.id, 'pdf-modules', deleteConfirmModId));
+                    if (moduleToDelete) {
+                      await logCourseRepActivity(
+                        'delete',
+                        'pdf',
+                        deleteConfirmModId,
+                        moduleToDelete.title,
+                        repName || 'Course Rep',
+                        userMatric,
+                        moduleToDelete.departmentId || selectedCourse?.departmentId,
+                        `Deleted PDF syllabus handbook from ${selectedCourse?.courseCode}`
+                      );
+                    }
                   } catch (err) {
                     console.error('Delete module error:', err);
                   } finally {
@@ -1474,10 +1519,23 @@ export default function ModulesView({
               <button
                 type="button"
                 onClick={async () => {
+                  const videoToDelete = courseVideos.find(v => v.id === deleteConfirmVideoId);
                   try {
                     await deleteDoc(doc(db, 'courses', selectedCourse!.id, 'videos', deleteConfirmVideoId));
                     if (activeVideo?.id === deleteConfirmVideoId) {
                       setActiveVideo(null); // Reset playing video if it was deleted
+                    }
+                    if (videoToDelete) {
+                      await logCourseRepActivity(
+                        'delete',
+                        'video',
+                        deleteConfirmVideoId,
+                        videoToDelete.title,
+                        repName || 'Course Rep',
+                        userMatric,
+                        videoToDelete.departmentId || selectedCourse?.departmentId,
+                        `Removed lecture video link from ${selectedCourse?.courseCode}`
+                      );
                     }
                   } catch (err) {
                     console.error('Delete video error:', err);
@@ -1518,10 +1576,23 @@ export default function ModulesView({
               <button
                 type="button"
                 onClick={async () => {
+                  const courseToDelete = courses.find(c => c.id === deleteConfirmCourseId);
                   try {
                     await deleteDoc(doc(db, 'courses', deleteConfirmCourseId));
                     if (selectedCourse?.id === deleteConfirmCourseId) {
                       setSelectedCourse(null);
+                    }
+                    if (courseToDelete) {
+                      await logCourseRepActivity(
+                        'delete',
+                        'course',
+                        deleteConfirmCourseId,
+                        courseToDelete.courseCode,
+                        repName || 'Course Rep',
+                        userMatric,
+                        courseToDelete.departmentId,
+                        `Deleted course folder and all nested materials of ${courseToDelete.courseCode}: ${courseToDelete.title}`
+                      );
                     }
                   } catch (err) {
                     console.error('Delete course error:', err);

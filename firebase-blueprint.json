@@ -445,9 +445,53 @@
         }
       },
       "required": ["id", "matricNumber", "timestamp", "date"]
+    },
+    "CourseRepLog": {
+      "title": "CourseRepLog",
+      "description": "Activity logs tracking Course Rep additions, edits, and deletions",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "repName": {
+          "type": "string"
+        },
+        "repMatric": {
+          "type": "string"
+        },
+        "action": {
+          "type": "string",
+          "enum": ["add", "edit", "delete"]
+        },
+        "targetType": {
+          "type": "string",
+          "enum": ["schedule", "deadline", "announcement", "course", "pdf", "video"]
+        },
+        "targetId": {
+          "type": "string"
+        },
+        "targetName": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string"
+        },
+        "details": {
+          "type": "string"
+        },
+        "departmentId": {
+          "type": "string"
+        }
+      },
+      "required": ["id", "repName", "repMatric", "action", "targetType", "targetId", "targetName", "timestamp"]
     }
   },
   "firestore": {
+    "course_rep_logs/{logId}": {
+      "schema": "CourseRepLog",
+      "description": "Chronological audit log of all changes made by Course Representatives"
+    },
     "traffic/{trafficId}": {
       "schema": "Traffic",
       "description": "Analytics data points recording unique user access"

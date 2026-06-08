@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import GlassCard from './GlassCard';
 import FeedbackPage from './FeedbackPage';
+import CourseRepLogsView from './CourseRepLogsView';
 import { db, getSafeDocId, handleFirestoreError, OperationType } from '../lib/firebase';
 import { collection, getDocs, getDoc, doc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
 
@@ -48,7 +49,7 @@ export default function AdminDashboard({
   const [isRevokingSub, setIsRevokingSub] = useState<string | null>(null);
 
   // Bottom navigation state
-  const [activeAdminTab, setActiveAdminTab] = useState<'dashboard' | 'settings' | 'feedback' | 'departments' | 'traffic_payments' | 'messages'>('dashboard');
+  const [activeAdminTab, setActiveAdminTab] = useState<'dashboard' | 'settings' | 'feedback' | 'departments' | 'traffic_payments' | 'messages' | 'rep_activities'>('dashboard');
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
   const [unreadFeedbacksCount, setUnreadFeedbacksCount] = useState(0);
 
@@ -98,6 +99,9 @@ export default function AdminDashboard({
   const [newUserDeptId, setNewUserDeptId] = useState('dept-ps-ich');
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
+
+  // Course Rep logs state
+  const [courseRepLogs, setCourseRepLogs] = useState<any[]>([]);
 
   // User edit modal states
   const [editingUser, setEditingUser] = useState<any | null>(null);
@@ -565,6 +569,29 @@ export default function AdminDashboard({
         });
       } catch (err) {
         console.error('[Admin] Live feedback onSnapshot subscription failed:', err);
+      }
+    }
+    return () => unsubscribe();
+  }, []);
+
+  // Listen to live Course Rep activity logs
+  useEffect(() => {
+    let unsubscribe = () => {};
+    if (db) {
+      try {
+        unsubscribe = onSnapshot(collection(db, 'course_rep_logs'), (snapshot) => {
+          const logs: any[] = [];
+          snapshot.forEach((doc) => {
+            logs.push({ id: doc.id, ...doc.data() });
+          });
+          // Sort chronologically (newest first)
+          logs.sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime());
+          setCourseRepLogs(logs);
+        }, (err) => {
+          console.warn('[Admin] Live course rep logs subscribe fallback:', err);
+        });
+      } catch (err) {
+        console.error('[Admin] Live course rep logs subscription failed:', err);
       }
     }
     return () => unsubscribe();
@@ -1605,9 +1632,18 @@ export default function AdminDashboard({
                 <ShieldCheck className="w-8 h-8 text-rose-400/20 absolute right-4 top-4 font-black" />
                 <h4 className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">Course Representatives</h4>
                 <p className="text-3xl font-display font-black text-rose-400 mt-1">{courseRepCount}</p>
-                <div className="text-[10px] text-slate-400 mt-2 flex items-center gap-1.5 font-mono">
-                  <div className="w-1.5 h-1.5 bg-rose-500 rounded-full shrink-0" />
-                  <span className="truncate">Representatives / Admins</span>
+                <div className="text-[10px] text-slate-400 mt-2 flex items-center justify-between gap-1.5 font-mono">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <div className="w-1.5 h-1.5 bg-rose-500 rounded-full shrink-0" />
+                    <span className="truncate">Reps / Admins</span>
+                  </div>
+                  <button
+                    onClick={() => setActiveAdminTab('rep_activities')}
+                    className="px-2 py-0.5 bg-rose-500/15 hover:bg-rose-500/35 border border-rose-500/30 rounded-md text-[9px] text-rose-300 font-bold transition-all cursor-pointer outline-none shrink-0"
+                    id="admin-view-logs-btn"
+                  >
+                    View Logs
+                  </button>
                 </div>
               </GlassCard>
 
@@ -2121,6 +2157,12 @@ export default function AdminDashboard({
               </div>
             </div>
           </>
+        ) : activeAdminTab === 'rep_activities' ? (
+          <CourseRepLogsView
+            logs={courseRepLogs}
+            onBack={() => setActiveAdminTab('dashboard')}
+            departments={departments}
+          />
         ) : activeAdminTab === 'feedback' ? (
           <FeedbackPage
             user={{

@@ -110,28 +110,21 @@ export default function CalendarView({ activities, currentUserMatric, onBack, on
     const dateStr = getLocalYYYYMMDD(date);
     
     const mondayOfCell = getMondayOfWeekDate(date);
-    const mondayOfCurrent = getMondayOfWeekDate(new Date());
 
     let active: Activity[] = [];
     let deleted: Activity[] = [];
 
-    if (mondayOfCell < mondayOfCurrent) {
-      // PAST WEEK! Load from archived bin local cache
-      deleted = deletedActivities.filter(act => {
-        if (act.date) {
-          return act.date === dateStr;
-        }
-        return act.day === dayOfWeek;
-      });
-    } else {
-      // CURRENT WEEK or FUTURE WEEK! All schedules ahead are live
-      active = activities.filter(act => {
-        if (act.date) {
-          return act.date === dateStr;
-        }
-        return act.day === dayOfWeek;
-      });
-    }
+    // All weeks (past, present, future) load schedules from database!
+    active = activities.filter(act => {
+      // If a repeating class was added after the target week, do not show it
+      if (act.createdWeekMonday && act.createdWeekMonday > mondayOfCell) {
+        return false;
+      }
+      if (act.date) {
+        return act.date === dateStr;
+      }
+      return act.day === dayOfWeek;
+    });
 
     return {
       active,

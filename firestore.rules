@@ -115,5 +115,10 @@ service cloud.firestore {
     match /traffic/{trafficId} {
       allow read, write: if isValidId(trafficId);
     }
+
+    // Course Rep logs collection
+    match /course_rep_logs/{logId} {
+      allow read, write: if isValidId(logId);
+    }
   }
 }
