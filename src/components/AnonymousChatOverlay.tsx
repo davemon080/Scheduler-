@@ -22,6 +22,7 @@ import {
   limit, 
   orderBy 
 } from 'firebase/firestore';
+import { getSafeDocId } from '../lib/firebase';
 
 interface AnonymousChatOverlayProps {
   db: any;
@@ -239,7 +240,7 @@ export default function AnonymousChatOverlay({
   useEffect(() => {
     if (!db || !currentUser?.matricNumber || !isEligible) return;
 
-    const docReference = doc(db, 'anonymous_chat_viewers', currentUser.matricNumber);
+    const docReference = doc(db, 'anonymous_chat_viewers', getSafeDocId(currentUser.matricNumber));
     const writeHeartbeat = async () => {
       try {
         await setDoc(docReference, {
