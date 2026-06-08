@@ -176,66 +176,11 @@ export default function AnonymousChatOverlay({
   const [unviewedCount, setUnviewedCount] = useState(0);
   const [soundEnabled, setSoundEnabled] = useState(() => safeLocalStorage.getItem('ich100l_chat_sound_enabled') !== 'false');
 
-  const [typingUsers, setTypingUsers] = useState<string[]>([]);
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const lastWriteTypingRef = useRef<number>(0);
-
-  const updateTypingStatus = async (isTyping: boolean) => {
-    if (!db || !currentUser?.matricNumber || !isEligible) return;
-    const typingDocId = getSafeDocId(currentUser.matricNumber);
-    const typingDocRef = doc(db, 'anonymous_chat_typing', typingDocId);
-    try {
-      if (isTyping) {
-        const now = Date.now();
-        if (now - lastWriteTypingRef.current > 4000) {
-          lastWriteTypingRef.current = now;
-          await setDoc(typingDocRef, {
-            id: currentUser.matricNumber,
-            alias: localAlias.name,
-            isTyping: true,
-            lastActive: new Date().toISOString()
-          }, { merge: true });
-        }
-      } else {
-        lastWriteTypingRef.current = 0;
-        await setDoc(typingDocRef, {
-          isTyping: false,
-          lastActive: new Date().toISOString()
-        }, { merge: true });
-      }
-    } catch (err) {
-      console.warn('[Chat] Update typing status failed:', err);
-    }
-  };
-
-  const handleInputChange = (text: string) => {
-    setInputText(text);
-
-    if (text.trim().length > 0) {
-      updateTypingStatus(true);
-
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-      }
-
-      typingTimeoutRef.current = setTimeout(() => {
-        updateTypingStatus(false);
-      }, 4000);
-    } else {
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-      }
-      updateTypingStatus(false);
-    }
-  };
-
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const isPaidAccess = subStatus === 'active' || isCourseRep;
   const isEligible = chatConfig.enabled && (chatConfig.visibility === 'all' || isPaidAccess);
-
-  const localAlias = getOrGenerateAlias(currentUser?.matricNumber || 'GUEST');
 
   // Load and subscribe to real-time chat messages
   useEffect(() => {
@@ -266,46 +211,6 @@ export default function AnonymousChatOverlay({
     return () => unsub();
   }, [db, isEligible]);
 
-  // Subscribe to live typing indicators
-  useEffect(() => {
-    if (!db || !isEligible) return;
-
-    const queryTyping = collection(db, 'anonymous_chat_typing');
-    const unsubTyping = onSnapshot(queryTyping, (snapshot) => {
-      const activeTypists: string[] = [];
-      const now = Date.now();
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        const isNotLocal = data.alias !== localAlias.name;
-        const isActive = data.lastActive ? (now - Date.parse(data.lastActive) < 8000) : false;
-        
-        if (data.isTyping && isNotLocal && isActive && data.alias) {
-          activeTypists.push(data.alias);
-        }
-      });
-      setTypingUsers(activeTypists);
-    }, (err) => {
-      console.warn('[Chat] Typing subscription failed:', err);
-    });
-
-    return () => {
-      unsubTyping();
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-      }
-    };
-  }, [db, isEligible, localAlias.name]);
-
-  // Reset typing indicator when modal closes or unmounts
-  useEffect(() => {
-    if (!isOpen) {
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-      }
-      updateTypingStatus(false);
-    }
-  }, [isOpen]);
-
   const lastMsgCountRef = useRef(0);
 
   // Monitor incoming real-time messages safely to trigger notification sound/badge
@@ -313,8 +218,7 @@ export default function AnonymousChatOverlay({
     if (!isEligible) return;
     
     if (messages.length > lastMsgCountRef.current) {
-      const lastMsg = messages[messages.length - 1];
-      if (lastMsg && lastMsg.alias !== localAlias.name && lastMsgCountRef.current > 0) {
+      if (lastMsgCountRef.current > 0) {
         playNotificationSound();
         if (!isOpen) {
           setUnviewedCount((c) => c + 1);
@@ -322,7 +226,7 @@ export default function AnonymousChatOverlay({
       }
     }
     lastMsgCountRef.current = messages.length;
-  }, [messages, localAlias.name, isOpen, isEligible]);
+  }, [messages, isOpen, isEligible]);
 
   // Keep track of unread count and reset once opened
   useEffect(() => {
@@ -405,17 +309,10 @@ export default function AnonymousChatOverlay({
     const sendingText = inputText.trim();
     setInputText('');
 
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-    }
-    updateTypingStatus(false);
-
     try {
       await addDoc(collection(db, 'anonymous_chat_messages'), {
         content: sendingText,
-        timestamp: new Date().toISOString(),
-        alias: localAlias.name,
-        color: localAlias.color
+        timestamp: new Date().toISOString()
       });
     } catch (err) {
       console.error('[Chat] Publish message database failure:', err);
@@ -428,6 +325,19 @@ export default function AnonymousChatOverlay({
     const nextSound = !soundEnabled;
     setSoundEnabled(nextSound);
     safeLocalStorage.setItem('ich100l_chat_sound_enabled', String(nextSound));
+  };
+
+  // Deterministic classy soft gradient choices for our bold cards
+  const getCardStyle = (index: number) => {
+    const glassPresets = [
+      "bg-white/[0.04] hover:bg-white/[0.06] border-white/10 shadow-[0_8px_32px_0_rgba(255,255,255,0.02)]",
+      "bg-indigo-500/[0.04] hover:bg-indigo-500/[0.06] border-indigo-500/20 shadow-[0_8px_32px_0_rgba(99,102,241,0.05)]",
+      "bg-violet-500/[0.04] hover:bg-violet-500/[0.06] border-violet-500/20 shadow-[0_8px_32px_0_rgba(139,92,246,0.05)]",
+      "bg-cyan-500/[0.03] hover:bg-cyan-500/[0.05] border-cyan-500/20 shadow-[0_8px_32px_0_rgba(6,182,212,0.05)]",
+      "bg-emerald-500/[0.03] hover:bg-emerald-500/[0.05] border-emerald-500/20 shadow-[0_8px_32px_0_rgba(16,185,129,0.04)]",
+      "bg-fuchsia-500/[0.03] hover:bg-fuchsia-500/[0.05] border-fuchsia-500/20 shadow-[0_8px_32px_0_rgba(217,70,239,0.04)]"
+    ];
+    return glassPresets[index % glassPresets.length];
   };
 
   return (
@@ -461,180 +371,154 @@ export default function AnonymousChatOverlay({
         </button>
       </div>
 
-      {/* Full-Screen Glassmorphic Anonymous Chat Room Overlay */}
+      {/* Full-Screen Glassmorphic Anonymous Board Overlay */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[1000] bg-slate-950/25 backdrop-blur-[6px] flex justify-center items-center p-4 sm:p-6"
+            className="fixed inset-0 z-[1000] bg-slate-950/25 backdrop-blur-[12px] flex flex-col h-screen w-screen text-white relative overflow-hidden"
           >
             {/* Ambient Background Glow Decors */}
-            <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[300px] h-[300px] rounded-full bg-violet-500/5 blur-[120px] pointer-events-none" />
+            <div className="absolute top-1/4 left-1/4 w-[400px] h-[400px] rounded-full bg-violet-500/5 blur-[150px] pointer-events-none" />
+            <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] rounded-full bg-indigo-500/5 blur-[150px] pointer-events-none" />
 
-            <div className="max-w-md w-full h-[85vh] sm:h-[80vh] flex flex-col bg-slate-950/45 backdrop-blur-xl border border-white/10 rounded-3xl shadow-[0_24px_50px_rgba(0,0,0,0.6)] relative overflow-hidden">
+            {/* Custom Interactive Tabs Display (No physical header) */}
+            <div className="w-full max-w-7xl mx-auto px-6 pt-6 sm:px-8 shrink-0 flex items-center justify-between select-none relative z-10">
               
-              {/* Glassy Title Container */}
-              <div className="p-4 pb-2 shrink-0">
-                <div id="anonymous-chat-header-glass" className="p-3.5 px-4 rounded-2xl bg-white/[0.04] border border-white/10 backdrop-blur-md flex items-center justify-between shadow-md">
-                  <div className="flex items-center gap-3">
-                    <div className="relative flex items-center justify-center">
-                      <span className="absolute inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500 opacity-75 animate-ping" />
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-                    </div>
-                    <div className="flex items-baseline gap-2.5">
-                      <h2 className="text-sm font-bold tracking-wider text-white font-sans lowercase">anonymous</h2>
-                      <span className="text-[10px] font-mono text-slate-350 bg-white/5 border border-white/10 px-2 py-0.5 rounded-full flex items-center gap-1 shrink-0 select-none">
-                        <Users className="w-2.5 h-2.5 text-indigo-400" />
-                        <span>{activeViewersCount} active</span>
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1.5">
-                    {/* Sound Notifier toggle button */}
-                    <button
-                      onClick={toggleSound}
-                      className="p-2 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-slate-200 rounded-xl transition-all cursor-pointer outline-none"
-                      title={soundEnabled ? "Mute Chat" : "Unmute Chat"}
-                    >
-                      {soundEnabled ? (
-                        <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
-                      ) : (
-                        <VolumeX className="w-3.5 h-3.5 text-rose-450" />
-                      )}
-                    </button>
-
-                    <button
-                      onClick={() => setIsOpen(false)}
-                      className="p-2 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-white rounded-xl transition-all cursor-pointer outline-none"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
+              {/* Section Brand Card */}
+              <div className="p-1 px-4 py-2.5 rounded-2xl bg-white/[0.03] border border-white/10 backdrop-blur-md shadow-md flex items-center gap-2.5 transition-all">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-indigo-500" />
+                </span>
+                <span className="text-sm font-black tracking-widest text-indigo-300 font-sans lowercase">anonymous</span>
               </div>
 
-              {/* Chat Sub-Notice Banner */}
-              <div className="px-4 py-1 select-none shrink-0">
-                <div className="bg-indigo-500/10 border border-indigo-500/20 p-2.5 px-3.5 rounded-xl flex items-center gap-2">
-                  <AlertTriangle className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-                  <p className="text-[9.5px] text-slate-300 font-sans leading-normal text-left">
-                    Your handle is <strong className={`${localAlias.color} font-mono font-bold`}>{localAlias.name}</strong>. Student ID & email are kept hidden.
-                  </p>
+              {/* Stats & Controls Panel */}
+              <div className="flex items-center gap-2">
+                {/* Number of Active Users Card */}
+                <div className="px-3.5 py-2.5 rounded-2xl bg-white/[0.03] border border-white/10 backdrop-blur-md shadow-md flex items-center gap-2 font-mono text-xs text-slate-350">
+                  <Users className="w-4 h-4 text-indigo-400" />
+                  <span>{activeViewersCount} active minds</span>
                 </div>
+
+                {/* Sound Toggle */}
+                <button
+                  onClick={toggleSound}
+                  className="p-2.5 bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 text-slate-400 hover:text-slate-200 rounded-2xl transition-all cursor-pointer outline-none backdrop-blur-md shadow-md"
+                  title={soundEnabled ? "Mute New Thoughts" : "Unmute New Thoughts"}
+                >
+                  {soundEnabled ? (
+                    <Volume2 className="w-4 h-4 text-emerald-400" />
+                  ) : (
+                    <VolumeX className="w-4 h-4 text-rose-455" />
+                  )}
+                </button>
+
+                {/* Glass Close Dock */}
+                <button
+                  onClick={() => setIsOpen(false)}
+                  className="p-2.5 bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 text-slate-300 hover:text-white rounded-2xl transition-all cursor-pointer outline-none backdrop-blur-md shadow-md"
+                  title="Close Anymous Lounge"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
 
-              {/* Messages Body */}
-              <div 
-                ref={scrollContainerRef}
-                className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar"
-              >
-                {messages.length === 0 ? (
-                  <div className="h-full flex flex-col justify-center items-center text-center p-6 space-y-3.5 select-none">
-                    <div className="w-14 h-14 rounded-full bg-slate-900 border border-slate-850/80 text-slate-600 flex items-center justify-center animate-pulse">
-                      <MessageSquare className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-mono font-black text-slate-350 tracking-wider">SECURE ROOM LIVE</h4>
-                      <p className="text-[10px] text-slate-500 font-sans mt-1 max-w-[240px] leading-relaxed">
-                        Nothing matches your screen identity. Drop a friendly message or ask a chemistry homework query on the fly.
-                      </p>
-                    </div>
+            </div>
+
+            {/* Dynamic Board Scroller (Masonry Card feel) */}
+            <div 
+              ref={scrollContainerRef}
+              className="flex-1 overflow-y-auto px-6 py-8 sm:px-8 max-w-7xl mx-auto w-full space-y-8 no-scrollbar relative z-10"
+            >
+              {messages.length === 0 ? (
+                <div className="h-[60vh] flex flex-col justify-center items-center text-center p-6 space-y-4 select-none">
+                  <div className="w-16 h-16 rounded-3xl bg-white/[0.02] border border-white/10 text-slate-500 flex items-center justify-center shadow-lg">
+                    <AlertTriangle className="w-8 h-8 text-indigo-400" />
                   </div>
-                ) : (
-                  <>
-                    <div className="flex justify-center select-none pt-1">
-                      <span className="bg-white/5 border border-white/10 text-[8px] font-mono text-slate-450 uppercase tracking-widest px-3 py-1 rounded">
-                        🔒 CHAT ENCRYPTED & ANONYMIZED
-                      </span>
-                    </div>
+                  <div>
+                    <h4 className="text-sm font-mono font-bold text-slate-300 tracking-wider">ANONYMOUS THOUGHT BOARD</h4>
+                    <p className="text-xs text-slate-400 font-sans mt-2 max-w-sm leading-relaxed">
+                      Express freely. Post chemistry questions, questions with total secrecy. No names, no profiling, absolute zero-knowledge privacy.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5 items-stretch pb-10">
+                  {messages.map((msg, index) => {
+                    const msgDate = msg.timestamp ? new Date(msg.timestamp) : new Date();
+                    const displayTime = msgDate.toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    });
+                    const dayLabel = msgDate.toLocaleDateString([], {
+                      month: 'short',
+                      day: 'numeric'
+                    });
 
-                    {messages.map((msg, index) => {
-                      const isOwner = msg.alias === localAlias.name;
-                      const msgDate = msg.timestamp ? new Date(msg.timestamp) : new Date();
-                      
-                      const displayTime = msgDate.toLocaleTimeString([], {
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      });
-
-                      // Deterministic selection of bubble styles
-                      const msgAliasInfo = getOrGenerateAlias(msg.alias);
-                      const balloonStyle = isOwner 
-                        ? 'bg-indigo-600/35 border-indigo-400/30 text-white rounded-br-none ml-auto shadow-[0_4px_12px_rgba(99,102,241,0.2)]' 
-                        : 'bg-white/[0.04] border-white/5 text-slate-100 rounded-bl-none shadow-sm';
-
-                      return (
-                        <div 
-                          key={msg.id || index}
-                          className={`flex flex-col max-w-[82%] ${isOwner ? 'items-end ml-auto' : 'items-start'}`}
-                        >
-                          {/* Sender alias header */}
-                          {!isOwner && (
-                            <span className={`text-[9px] font-mono font-black mb-1 px-1.5 py-0.5 rounded ${msgAliasInfo.bgGlow} ${msgAliasInfo.color}`}>
-                              {msg.alias}
-                            </span>
-                          )}
-
-                          {/* Message Balloon */}
-                          <div className={`p-3 rounded-2xl border text-left leading-relaxed text-xs shadow-md transition-all duration-300 font-sans break-words w-full ${balloonStyle}`}>
-                            <span>{msg.content}</span>
-                            
-                            {/* Balloon Timestamp */}
-                            <p className="text-[8px] font-mono text-slate-500 mt-1 select-none text-right leading-none">
-                              {displayTime}
-                            </p>
-                          </div>
+                    return (
+                      <motion.div 
+                        initial={{ opacity: 0, y: 15 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3, delay: Math.min(index * 0.04, 0.4) }}
+                        key={msg.id || index}
+                        className={`p-5 rounded-2xl border flex flex-col justify-between group transition-all duration-300 backdrop-blur-md ${getCardStyle(index)}`}
+                      >
+                        {/* Display content dynamically as BOLD */}
+                        <div className="text-sm sm:text-base font-bold font-sans tracking-wide leading-relaxed text-slate-100 break-words flex-1 mb-4 select-text">
+                          {msg.content}
                         </div>
-                      );
-                    })}
-                    <div ref={messagesEndRef} />
-                  </>
-                )}
-              </div>
 
-              {/* Typing indicator */}
-              {typingUsers.length > 0 && (
-                <div className="px-5 py-2 flex items-center gap-2 text-[10px] font-mono text-slate-400 select-none bg-white/[0.02] border-t border-white/5 shrink-0">
-                  <div className="flex gap-1 items-center justify-center py-1">
-                    <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce [animation-delay:-0.3s]" />
-                    <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce [animation-delay:-0.15s]" />
-                    <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" />
-                  </div>
-                  <span>
-                    {typingUsers.join(', ')} {typingUsers.length === 1 ? 'is' : 'are'} typing...
-                  </span>
+                        {/* Card metadata (just clean timestamp) */}
+                        <div className="flex items-center justify-between border-t border-white/5 pt-3 mt-1 text-[10px] font-mono text-slate-450 select-none">
+                          <span className="text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full text-[9px] font-sans font-medium">
+                            thought
+                          </span>
+                          <span>
+                            {dayLabel}, {displayTime}
+                          </span>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                  <div ref={messagesEndRef} />
                 </div>
               )}
+            </div>
 
-              {/* Float Fixed Glassy Bottom Input Bar */}
-              <footer className="p-4 shrink-0 bg-gradient-to-t from-slate-950 via-[#030712]/50 to-transparent">
+            {/* Float Fixed Glassy Bottom Input Bar */}
+            <footer className="p-6 shrink-0 bg-gradient-to-t from-slate-950 via-slate-950/80 to-transparent relative z-10">
+              <div className="max-w-xl mx-auto w-full">
                 <form 
                   onSubmit={handleSendMessage}
-                  className="glassmorphism p-1 rounded-full border border-slate-800/80 bg-slate-950/40 backdrop-blur-md flex items-center gap-2 pl-4 focus-within:border-indigo-500/60 transition-colors shadow-lg"
+                  className="p-1.5 rounded-2xl border border-white/10 bg-slate-950/70 backdrop-blur-md flex items-center gap-2 pl-4 focus-within:border-indigo-500/50 transition-colors shadow-2xl"
                 >
                   <input
                     type="text"
                     required
                     value={inputText}
                     disabled={isSending}
-                    onChange={(e) => handleInputChange(e.target.value)}
-                    placeholder="Ask anonymously..."
-                    className="flex-1 bg-transparent text-xs text-white border-none outline-none focus:ring-0 placeholder:text-slate-600 font-sans outline-0 py-2"
+                    onChange={(e) => setInputText(e.target.value)}
+                    placeholder="Post a thought anonymously..."
+                    className="flex-1 bg-transparent text-xs sm:text-sm text-white border-none outline-none focus:ring-0 placeholder:text-slate-500 font-sans outline-0 py-2.5"
                   />
                   
                   <button
                     type="submit"
                     disabled={isSending || !inputText.trim()}
-                    className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 via-indigo-600 to-violet-600 hover:from-indigo-400 hover:to-violet-500 text-white flex items-center justify-center shrink-0 transition-transform hover:scale-105 active:scale-95 disabled:opacity-40 disabled:scale-100 cursor-pointer outline-none border-0"
+                    className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-violet-600 hover:from-indigo-400 hover:to-violet-500 text-white flex items-center justify-center shrink-0 transition-all hover:scale-105 active:scale-95 disabled:opacity-30 disabled:scale-100 cursor-pointer outline-none border-0 shadow-md"
                   >
-                    <Send className="w-3.5 h-3.5 mr-0.5" />
+                    <Send className="w-4 h-4" />
                   </button>
                 </form>
-              </footer>
-            </div>
+                <p className="text-[10px] text-center text-slate-500 font-sans mt-3 tracking-wide">
+                  🔒 Zero identifying keys saved. Be polite, share wisdom.
+                </p>
+              </div>
+            </footer>
           </motion.div>
         )}
       </AnimatePresence>
