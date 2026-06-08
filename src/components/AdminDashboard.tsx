@@ -111,6 +111,7 @@ export default function AdminDashboard({
   const [editUserLevel, setEditUserLevel] = useState('100l');
   const [editUserDeptId, setEditUserDeptId] = useState('dept-ps-ich');
   const [selectedLevelFilter, setSelectedLevelFilter] = useState('all');
+  const [selectedAccessFilter, setSelectedAccessFilter] = useState<'all' | 'paid' | 'admin-granted' | 'expired'>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [editFormError, setEditFormError] = useState('');
   const [isEditSaving, setIsEditSaving] = useState(false);
@@ -118,7 +119,7 @@ export default function AdminDashboard({
   // Reset pagination to first page whenever filtering conditions are changed
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, selectedRegisterId, selectedLevelFilter]);
+  }, [searchTerm, selectedRegisterId, selectedLevelFilter, selectedAccessFilter]);
 
   // Action feedback states
   const [actionFeedback, setActionFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -421,13 +422,15 @@ export default function AdminDashboard({
       const isStatusActive = sub.status === 'active';
       
       if (isStatusActive || isExpiryValid) {
-        if (sub.reference === 'ADMIN-GRANTED' || sub.adminGranted) {
+        const isAdminGranted = sub.reference === 'ADMIN-GRANTED' || sub.adminGranted === true;
+        if (isAdminGranted) {
           return {
             type: 'admin-granted',
             label: 'Ad-Free (Admin Granted)',
             hasAccess: true,
             badgeClass: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/15',
-            expiryText: sub.expiryDate === 'Current Semester' ? 'Semester Pass' : `Expires ${new Date(sub.expiryDate).toLocaleDateString()}`
+            expiryText: sub.expiryDate === 'Current Semester' ? 'Semester Pass' : `Expires ${new Date(sub.expiryDate).toLocaleDateString()}`,
+            isAdminGranted: true
           };
         }
         return {
@@ -435,7 +438,8 @@ export default function AdminDashboard({
           label: 'Ad-Free (Paid)',
           hasAccess: true,
           badgeClass: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/15',
-          expiryText: sub.expiryDate === 'Current Semester' ? 'Semester Pass' : `Expires ${new Date(sub.expiryDate).toLocaleDateString()}`
+          expiryText: sub.expiryDate === 'Current Semester' ? 'Semester Pass' : `Expires ${new Date(sub.expiryDate).toLocaleDateString()}`,
+          isAdminGranted: false
         };
       }
     }
@@ -1451,6 +1455,14 @@ export default function AdminDashboard({
       }
     }
 
+    // Filter by access status
+    if (selectedAccessFilter !== 'all') {
+      const statusObj = getUserStatus(u);
+      if (statusObj.type !== selectedAccessFilter) {
+        return false;
+      }
+    }
+
     if (selectedRegisterId === 'all') return true;
     return getUserDepartmentId(u) === selectedRegisterId;
   });
@@ -1481,6 +1493,17 @@ export default function AdminDashboard({
   const filteredPaidCount = filteredUsers.filter(u => {
     const status = getUserStatus(u);
     return status.type === 'paid';
+  }).length;
+
+  // Calculate admin-granted free access counts
+  const adminGrantedStudentsCount = users.filter(u => {
+    const status = getUserStatus(u);
+    return status.type === 'admin-granted';
+  }).length;
+
+  const filteredAdminGrantedCount = filteredUsers.filter(u => {
+    const status = getUserStatus(u);
+    return status.type === 'admin-granted';
   }).length;
 
   // Simple clean helper for visual initials
@@ -1599,7 +1622,7 @@ export default function AdminDashboard({
         {activeAdminTab === 'dashboard' ? (
           <>
             {/* Telemetry/KPI Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
               <GlassCard className="p-4 bg-slate-950/40 border-slate-900 relative">
                 <Users className="w-8 h-8 text-indigo-400/20 absolute right-4 top-4 font-black" />
                 <h4 className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">Student Registry</h4>
@@ -1615,15 +1638,29 @@ export default function AdminDashboard({
               </GlassCard>
 
               <GlassCard className="p-4 bg-slate-950/40 border-slate-900 relative">
-                <CreditCard className="w-8 h-8 text-emerald-400/20 absolute right-4 top-4 font-black" />
+                <CreditCard className="w-8 h-8 text-indigo-500/20 absolute right-4 top-4 font-black" />
                 <h4 className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">Paid Students</h4>
-                <p className="text-3xl font-display font-black text-emerald-400 mt-1">
+                <p className="text-3xl font-display font-black text-indigo-400 mt-1">
                   {filteredPaidCount} <span className="text-sm font-normal text-slate-500 font-mono">/ {paidStudentsCount}</span>
+                </p>
+                <div className="text-[10px] text-slate-400 mt-2 flex items-center gap-1.5 font-mono">
+                  <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full shrink-0 animate-pulse" />
+                  <span className="truncate">
+                    Paid: {filteredPaidCount} in selection
+                  </span>
+                </div>
+              </GlassCard>
+
+              <GlassCard className="p-4 bg-slate-950/40 border-slate-900 relative">
+                <Sparkles className="w-8 h-8 text-emerald-400/20 absolute right-4 top-4 font-black" />
+                <h4 className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">Admin Granted</h4>
+                <p className="text-3xl font-display font-black text-emerald-400 mt-1">
+                  {filteredAdminGrantedCount} <span className="text-sm font-normal text-slate-500 font-mono">/ {adminGrantedStudentsCount}</span>
                 </p>
                 <div className="text-[10px] text-slate-400 mt-2 flex items-center gap-1.5 font-mono">
                   <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full shrink-0 animate-pulse" />
                   <span className="truncate">
-                    Paid: {filteredPaidCount} in selection
+                    Granted: {filteredAdminGrantedCount} in selection
                   </span>
                 </div>
               </GlassCard>
@@ -1648,11 +1685,11 @@ export default function AdminDashboard({
               </GlassCard>
 
               <GlassCard className="p-4 bg-slate-950/40 border-slate-900 relative">
-                <Calendar className="w-8 h-8 text-emerald-400/20 absolute right-4 top-4 font-black" />
+                <Calendar className="w-8 h-8 text-amber-400/20 absolute right-4 top-4 font-black" />
                 <h4 className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">Added Last 48 hrs</h4>
-                <p className="text-3xl font-display font-black text-emerald-400 mt-1">{recentSignupsCount}</p>
+                <p className="text-3xl font-display font-black text-amber-400 mt-1">{recentSignupsCount}</p>
                 <div className="text-[10px] text-slate-400 mt-2 flex items-center gap-1.5 font-mono">
-                  <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full shrink-0" />
+                  <div className="w-1.5 h-1.5 bg-amber-500 rounded-full shrink-0" />
                   <span className="truncate">New student registrations</span>
                 </div>
               </GlassCard>
@@ -1847,46 +1884,93 @@ export default function AdminDashboard({
                 })()}
               </div>
 
-              {/* Academic Level Filters selector */}
-              <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-950/20 border border-slate-950 rounded-2xl">
-                <span className="text-[10px] uppercase font-mono tracking-wider text-slate-500 px-2 font-bold select-none">Level:</span>
-                {[
-                  { id: 'all', label: 'All Levels' },
-                  { id: '100l', label: '100L' },
-                  { id: '200l', label: '200L' },
-                  { id: '300l', label: '300L' },
-                  { id: '400l', label: '400L' },
-                  { id: '500l', label: '500L' }
-                ].map((levelObj) => {
-                  const isSelected = selectedLevelFilter === levelObj.id;
-                  const matchingCount = users.filter((u) => {
-                    const matchesDept = selectedRegisterId === 'all' || getUserDepartmentId(u) === selectedRegisterId;
-                    if (!matchesDept) return false;
-                    if (levelObj.id === 'all') return true;
-                    return (u.level || '100l').toLowerCase() === levelObj.id;
-                  }).length;
+              {/* Filter controls row */}
+              <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3">
+                {/* Academic Level Filters selector */}
+                <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-950/20 border border-slate-950 rounded-2xl flex-1 lg:flex-initial">
+                  <span className="text-[10px] uppercase font-mono tracking-wider text-slate-500 px-2 font-bold select-none">Level:</span>
+                  {[
+                    { id: 'all', label: 'All Levels' },
+                    { id: '100l', label: '100L' },
+                    { id: '200l', label: '200L' },
+                    { id: '300l', label: '300L' },
+                    { id: '400l', label: '400L' },
+                    { id: '500l', label: '500L' }
+                  ].map((levelObj) => {
+                    const isSelected = selectedLevelFilter === levelObj.id;
+                    const matchingCount = users.filter((u) => {
+                      const matchesDept = selectedRegisterId === 'all' || getUserDepartmentId(u) === selectedRegisterId;
+                      if (!matchesDept) return false;
+                      if (levelObj.id === 'all') return true;
+                      return (u.level || '100l').toLowerCase() === levelObj.id;
+                    }).length;
 
-                  return (
-                    <button
-                      key={levelObj.id}
-                      onClick={() => setSelectedLevelFilter(levelObj.id)}
-                      className={`px-3 py-1 rounded-xl text-[10px] font-mono font-bold uppercase transition-all duration-250 cursor-pointer outline-none ${
-                        isSelected
-                          ? 'bg-gradient-to-r from-indigo-500/20 to-indigo-600/15 border border-indigo-500/30 text-indigo-350 shadow-md shadow-indigo-500/5'
-                          : 'border border-transparent text-slate-500 hover:text-indigo-400 hover:bg-slate-900/30'
-                      }`}
-                    >
-                      <span>{levelObj.label}</span>
-                      <span className={`text-[8.5px] font-mono ml-2 px-1 py-0.1 rounded ${
-                        isSelected 
-                          ? 'bg-indigo-500/20 text-indigo-300' 
-                          : 'bg-slate-900/60 text-slate-600'
-                      }`}>
-                        {matchingCount}
-                      </span>
-                    </button>
-                  );
-                })}
+                    return (
+                      <button
+                        key={levelObj.id}
+                        onClick={() => setSelectedLevelFilter(levelObj.id)}
+                        className={`px-3 py-1 rounded-xl text-[10px] font-mono font-bold uppercase transition-all duration-250 cursor-pointer outline-none ${
+                          isSelected
+                            ? 'bg-gradient-to-r from-indigo-500/20 to-indigo-600/15 border border-indigo-500/30 text-indigo-350 shadow-md shadow-indigo-500/5'
+                            : 'border border-transparent text-slate-500 hover:text-indigo-400 hover:bg-slate-900/30'
+                        }`}
+                      >
+                        <span>{levelObj.label}</span>
+                        <span className={`text-[8.5px] font-mono ml-2 px-1 py-0.1 rounded ${
+                          isSelected 
+                            ? 'bg-indigo-500/20 text-indigo-300' 
+                            : 'bg-slate-900/60 text-slate-600'
+                        }`}>
+                          {matchingCount}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Access Status Filters selector */}
+                <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-950/20 border border-slate-950 rounded-2xl flex-1 lg:flex-initial">
+                  <span className="text-[10px] uppercase font-mono tracking-wider text-slate-500 px-2 font-bold select-none">Access:</span>
+                  {[
+                    { id: 'all', label: 'All Access' },
+                    { id: 'paid', label: 'Ad-Free (Paid)' },
+                    { id: 'admin-granted', label: 'Ad-Free (Granted)' },
+                    { id: 'expired', label: 'No Access / Free' }
+                  ].map((statusObj) => {
+                    const isSelected = selectedAccessFilter === statusObj.id;
+                    const matchingCount = users.filter((u) => {
+                      const matchesDept = selectedRegisterId === 'all' || getUserDepartmentId(u) === selectedRegisterId;
+                      if (!matchesDept) return false;
+                      const matchesLevel = selectedLevelFilter === 'all' || (u.level || '100l').toLowerCase() === selectedLevelFilter;
+                      if (!matchesLevel) return false;
+                      
+                      const statusVal = getUserStatus(u);
+                      if (statusObj.id === 'all') return true;
+                      return statusVal.type === statusObj.id;
+                    }).length;
+
+                    return (
+                      <button
+                        key={statusObj.id}
+                        onClick={() => setSelectedAccessFilter(statusObj.id as any)}
+                        className={`px-3 py-1 rounded-xl text-[10px] font-mono font-bold uppercase transition-all duration-250 cursor-pointer outline-none ${
+                          isSelected
+                            ? 'bg-gradient-to-r from-emerald-500/20 to-emerald-600/15 border border-emerald-500/30 text-emerald-350 shadow-md shadow-emerald-500/5'
+                            : 'border border-transparent text-slate-500 hover:text-emerald-400 hover:bg-slate-900/30'
+                        }`}
+                      >
+                        <span>{statusObj.label}</span>
+                        <span className={`text-[8.5px] font-mono ml-2 px-1 py-0.1 rounded ${
+                          isSelected 
+                            ? 'bg-emerald-500/20 text-emerald-300' 
+                            : 'bg-slate-900/60 text-slate-600'
+                        }`}>
+                          {matchingCount}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* User stream records view */}
@@ -2017,43 +2101,43 @@ export default function AdminDashboard({
                               </span>
                             )}
 
-                            {/* Give 30 Days Free Ad-Free Subscription Action Button */}
-                            {!isCurrentAdmin && (
-                              <button
-                                onClick={() => handleGrantFreeAccess(user)}
-                                disabled={isGrantingSub === user.matricNumber}
-                                className={`p-1.5 border rounded-lg text-[10px] font-mono transition-all flex items-center gap-1 cursor-pointer ${
-                                  status.type === 'admin-granted'
-                                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 font-bold'
-                                    : 'bg-slate-950 hover:bg-slate-900 border-slate-850 hover:border-slate-800 text-slate-400 hover:text-emerald-400'
-                                }`}
-                                title="Grant Semester-long Free Ad-Free Premium Access"
-                              >
-                                {isGrantingSub === user.matricNumber ? (
-                                  <Loader2 className="w-3 h-3 animate-spin text-emerald-400" />
-                                ) : (
-                                  <Sparkles className="w-3 h-3 shrink-0 text-amber-400" />
-                                )}
-                                <span>{status.type === 'admin-granted' ? 'Extend Access' : 'Grant Semester Free'}</span>
-                              </button>
-                            )}
-
-                            {/* Revoke Free Ad-Free Access Button */}
-                            {!isCurrentAdmin && status.type === 'admin-granted' && (
-                              <button
-                                onClick={() => handleRevokeFreeAccess(user)}
-                                disabled={isRevokingSub === user.matricNumber}
-                                className="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 hover:border-rose-500/50 rounded-lg text-[10px] font-mono transition-all flex items-center gap-1 cursor-pointer"
-                                title="Revoke Free Ad-Free Access"
-                              >
-                                {isRevokingSub === user.matricNumber ? (
-                                  <Loader2 className="w-3 h-3 animate-spin text-rose-400" />
-                                ) : (
-                                  <Ban className="w-3 h-3 shrink-0 text-rose-400" />
-                                )}
-                                <span>Revoke Free</span>
-                              </button>
-                            )}
+                             {/* Give 30 Days Free Ad-Free Subscription Action Button */}
+                             {!isCurrentAdmin && (
+                               <button
+                                 onClick={() => handleGrantFreeAccess(user)}
+                                 disabled={isGrantingSub === user.matricNumber}
+                                 className={`p-1.5 border rounded-lg text-[10px] font-mono transition-all flex items-center gap-1 cursor-pointer ${
+                                   status.isAdminGranted
+                                     ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 font-bold'
+                                     : 'bg-slate-950 hover:bg-slate-900 border-slate-850 hover:border-slate-800 text-slate-400 hover:text-emerald-400'
+                                 }`}
+                                 title="Grant Semester-long Free Ad-Free Premium Access"
+                               >
+                                 {isGrantingSub === user.matricNumber ? (
+                                   <Loader2 className="w-3 h-3 animate-spin text-emerald-400" />
+                                 ) : (
+                                   <Sparkles className="w-3 h-3 shrink-0 text-amber-400" />
+                                 )}
+                                 <span>{status.isAdminGranted ? 'Extend Access' : 'Grant Semester Free'}</span>
+                               </button>
+                             )}
+ 
+                             {/* Revoke Free Ad-Free Access Button */}
+                             {!isCurrentAdmin && status.isAdminGranted && (
+                               <button
+                                 onClick={() => handleRevokeFreeAccess(user)}
+                                 disabled={isRevokingSub === user.matricNumber}
+                                 className="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 hover:border-rose-500/50 rounded-lg text-[10px] font-mono transition-all flex items-center gap-1 cursor-pointer"
+                                 title="Revoke Free Ad-Free Access"
+                               >
+                                 {isRevokingSub === user.matricNumber ? (
+                                   <Loader2 className="w-3 h-3 animate-spin text-rose-400" />
+                                 ) : (
+                                   <Ban className="w-3 h-3 shrink-0 text-rose-400" />
+                                 )}
+                                 <span>Revoke Free</span>
+                               </button>
+                             )}
 
                             {/* Edit Profile Action Button */}
                             <button
