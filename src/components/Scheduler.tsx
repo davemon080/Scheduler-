@@ -156,9 +156,7 @@ export default function Scheduler({
     return `${yyyy}-${mm}-${dd}`;
   };
 
-  // Filter activities based on selection and sort:
-  // 1. Live classes are pinned to the absolute top of the day
-  // 2. Followed by newest added/latest schedules descending by ID
+  // Filter activities based on selection and sort chronologically by scheduled start time
   const activeDayActivities = activities
     .filter((act) => {
       if (act.createdWeekMonday && act.createdWeekMonday > mondayOfCurrent) {
@@ -170,14 +168,7 @@ export default function Scheduler({
       return act.day === daySelected;
     })
     .sort((a, b) => {
-      const aLive = checkIfLive(a);
-      const bLive = checkIfLive(b);
-
-      if (aLive && !bLive) return -1;
-      if (!aLive && bLive) return 1;
-
-      // Normal schedules: Sort by newest added (e.g., ID descending)
-      return b.id.localeCompare(a.id);
+      return a.timeStart.localeCompare(b.timeStart);
     });
 
   // Count activities for each day to render beautiful markers
