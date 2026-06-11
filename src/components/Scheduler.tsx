@@ -14,7 +14,10 @@ interface SchedulerProps {
   activities: Activity[];
   currentUserMatric: string;
   isCourseRep: boolean;
+  isAdmin?: boolean;
   onDeleteActivity: (id: string) => void;
+  onPostponeActivity?: (id: string, newDate: string) => void;
+  onCancelActivity?: (id: string) => void;
   onEditActivity: (activity: Activity) => void;
   daySelected: DayOfWeek;
   setDaySelected: (day: DayOfWeek) => void;
@@ -36,7 +39,10 @@ export default function Scheduler({
   activities,
   currentUserMatric,
   isCourseRep,
+  isAdmin = false,
   onDeleteActivity,
+  onPostponeActivity,
+  onCancelActivity,
   onEditActivity,
   daySelected,
   setDaySelected,
@@ -46,6 +52,15 @@ export default function Scheduler({
   const [hoveredActivity, setHoveredActivity] = useState<string | null>(null);
   const [now, setNow] = useState<Date>(new Date());
   const [activityToDelete, setActivityToDelete] = useState<Activity | null>(null);
+  const [isPostponing, setIsPostponing] = useState(false);
+  const [postponeDate, setPostponeDate] = useState('');
+
+  useEffect(() => {
+    if (!activityToDelete) {
+      setIsPostponing(false);
+      setPostponeDate('');
+    }
+  }, [activityToDelete]);
 
   // Trigger time updates so Live indicators light up instantly on the minute
   useEffect(() => {
@@ -338,7 +353,9 @@ export default function Scheduler({
                     id={`activity-card-${activity.id}`}
                     accent={isLive || activity.category === 'Exam' || activity.courseCode === 'ICH 100L'}
                     className={`relative group transition-all duration-300 border-l-2 ${
-                      isLive
+                      activity.status === 'postponed' || activity.status === 'cancelled'
+                        ? 'border-l-slate-600 bg-slate-900/40 opacity-75'
+                        : isLive
                         ? 'border-l-emerald-500 ring-2 ring-emerald-500/50 bg-emerald-950/10 shadow-[0_0_25px_rgba(16,185,129,0.3)]'
                         : activity.category === 'Exam'
                         ? 'border-l-rose-500'
@@ -346,6 +363,11 @@ export default function Scheduler({
                     }`}
                     onClick={() => {}}
                   >
+                    {/* Crossed Red line for postponed or cancelled schedules */}
+                    {(activity.status === 'postponed' || activity.status === 'cancelled') && (
+                      <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-red-500/80 z-20 shadow-[0_0_8px_rgba(239,68,68,0.8)] pointer-events-none" />
+                    )}
+
                     <div className="flex items-start justify-between gap-4">
                       <div className="space-y-3 flex-1 min-w-0">
                         {/* Top labels */}
@@ -354,6 +376,18 @@ export default function Scheduler({
                             {activity.courseCode}
                           </span>
                           
+                          {activity.status === 'postponed' && (
+                            <span className="text-[10px] font-sans font-extrabold px-2 py-0.5 rounded-full border border-red-500/30 text-red-400 bg-red-500/10 flex items-center gap-1 shrink-0 animate-pulse">
+                              Postponed 🛑
+                            </span>
+                          )}
+
+                          {activity.status === 'cancelled' && (
+                            <span className="text-[10px] font-sans font-extrabold px-2 py-0.5 rounded-full border border-red-500/30 text-red-300 bg-red-500/10 flex items-center gap-1 shrink-0 animate-pulse">
+                              Cancelled 🚫
+                            </span>
+                          )}
+
                           <span
                             className={`text-[10px] font-sans font-medium px-2 py-0.5 rounded-full border ${getCategoryColor(
                               activity.category
@@ -389,9 +423,21 @@ export default function Scheduler({
                         </div>
 
                         {/* Title */}
-                        <h3 className="text-lg font-display font-extrabold text-slate-100 group-hover:text-white transition-colors leading-tight">
-                          {activity.title}
-                        </h3>
+                        <div className="space-y-1">
+                          <h3 className="text-lg font-display font-extrabold text-slate-100 group-hover:text-white transition-colors leading-tight">
+                            {activity.title}
+                          </h3>
+                          {activity.status === 'postponed' && (
+                            <span className="inline-block text-xs font-bold font-mono text-red-400 bg-red-500/10 border border-red-500/20 px-2 py-0.5 rounded uppercase">
+                              ⚠️ Postponed {activity.postponedToDate ? `to ${activity.postponedToDate}` : ''}
+                            </span>
+                          )}
+                          {activity.status === 'cancelled' && (
+                            <span className="inline-block text-xs font-bold font-mono text-red-500 bg-red-500/10 border border-red-500/20 px-2 py-0.5 rounded uppercase">
+                              ⚠️ Cancelled
+                            </span>
+                          )}
+                        </div>
 
                         {/* Description */}
                         {activity.description && (
@@ -484,8 +530,6 @@ export default function Scheduler({
         </AnimatePresence>
       </div>
 
-
-
       {/* Custom Confirmation Modal */}
       <AnimatePresence>
         {activityToDelete && (
@@ -504,37 +548,110 @@ export default function Scheduler({
               className="w-full max-w-sm glassmorphism border border-slate-800/80 rounded-3xl p-6 bg-[#0f172a]/95 shadow-[0_20px_50px_rgba(0,0,0,0.5)]"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center justify-center w-12 h-12 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-400 mx-auto mb-4 animate-bounce">
-                <AlertCircle className="w-6 h-6" />
+              <div className="flex items-center justify-center w-12 h-12 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 mx-auto mb-4 animate-bounce">
+                <AlertCircle className="w-6 h-6 text-indigo-400" />
               </div>
 
               <h3 className="text-center text-lg font-display font-black text-slate-100 tracking-tight">
-                Delete Class Schedule?
+                {isAdmin ? 'Delete Class Schedule?' : 'Postpone or Cancel Schedule?'}
               </h3>
               
               <p className="text-center text-xs text-slate-400 leading-relaxed font-sans mt-2">
-                Are you sure you want to delete <span className="font-semibold text-slate-200">"{activityToDelete.title}"</span> from the <span className="font-semibold text-indigo-300">{activityToDelete.day}</span> timeline? This action is irreversible and will update all students instantly.
+                {isAdmin
+                  ? `Are you sure you want to completely erase "${activityToDelete.title}"? This action cannot be undone.`
+                  : `Select whether "${activityToDelete.title}" has been postponed to another slot, or if the class is cancelled.`}
               </p>
 
-              <div className="flex items-center gap-3 mt-6">
-                <button
-                  type="button"
-                  onClick={() => setActivityToDelete(null)}
-                  className="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 rounded-xl text-xs font-semibold transition-all cursor-pointer text-center"
-                >
-                  No, Keep it
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onDeleteActivity(activityToDelete.id);
-                    setActivityToDelete(null);
-                  }}
-                  className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-semibold shadow-[0_4px_12px_rgba(244,63,94,0.25)] transition-all cursor-pointer text-center"
-                >
-                  Yes, Delete
-                </button>
-              </div>
+              {isAdmin ? (
+                <div className="flex items-center gap-3 mt-6">
+                  <button
+                    type="button"
+                    onClick={() => setActivityToDelete(null)}
+                    className="flex-1 py-1.5 bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-300 rounded-xl text-xs font-semibold transition-all cursor-pointer text-center"
+                  >
+                    No, Keep it
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onDeleteActivity(activityToDelete.id!);
+                      setActivityToDelete(null);
+                    }}
+                    className="flex-1 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-semibold shadow-[0_4px_12px_rgba(244,63,94,0.25)] transition-all cursor-pointer text-center"
+                  >
+                    Yes, Delete
+                  </button>
+                </div>
+              ) : isPostponing ? (
+                <div className="space-y-4 mt-6 text-left">
+                  <div>
+                    <label className="block text-xs font-bold font-sans text-indigo-400 mb-1.5 uppercase tracking-wider">
+                      Select Postponed Date
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      min={new Date().toISOString().split('T')[0]}
+                      value={postponeDate}
+                      onChange={(e) => setPostponeDate(e.target.value)}
+                      className="w-full bg-slate-950/80 border border-slate-800 text-sm text-white px-3 py-2.5 rounded-xl outline-none focus:border-indigo-50/50 focus:ring-1 focus:ring-indigo-500/50"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsPostponing(false)}
+                      className="flex-1 py-1.5 bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-300 rounded-xl text-xs font-bold transition-all cursor-pointer text-center"
+                    >
+                      Back
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!postponeDate}
+                      onClick={() => {
+                        if (postponeDate && onPostponeActivity) {
+                          onPostponeActivity(activityToDelete.id!, postponeDate);
+                          setActivityToDelete(null);
+                        }
+                      }}
+                      className="flex-1 py-1.5 bg-amber-500 hover:bg-amber-450 disabled:bg-slate-800 disabled:text-slate-600 text-slate-950 rounded-xl text-xs font-extrabold transition-all cursor-pointer hover:shadow-[0_4px_12px_rgba(245,158,11,0.25)] text-center flex items-center justify-center"
+                    >
+                      Confirm
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4 mt-6">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsPostponing(true);
+                    }}
+                    className="w-full py-2.5 bg-amber-500 hover:bg-amber-450 text-slate-950 rounded-xl text-xs font-black transition-all cursor-pointer hover:shadow-[0_4px_12px_rgba(245,158,11,0.25)] text-center flex items-center justify-center gap-1.5"
+                  >
+                    Postpone Class 🛑
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (onCancelActivity) {
+                        onCancelActivity(activityToDelete.id!);
+                        setActivityToDelete(null);
+                      }
+                    }}
+                    className="w-full py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-black transition-all cursor-pointer hover:shadow-[0_4px_12px_rgba(244,63,94,0.25)] text-center flex items-center justify-center gap-1.5"
+                  >
+                    Cancel Class 🚫
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActivityToDelete(null)}
+                    className="w-full py-2 bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-400 rounded-xl text-xs font-bold transition-all cursor-pointer text-center animate-pulse"
+                  >
+                    Close / Nevermind
+                  </button>
+                </div>
+              )}
             </motion.div>
           </motion.div>
         )}

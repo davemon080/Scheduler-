@@ -2012,6 +2012,123 @@ export default function App() {
     setActivities((prev) => prev.filter((a) => a.id !== id));
   };
 
+  const handleCancelActivity = async (id: string) => {
+    try {
+      await setDoc(doc(db, 'activities', id), { status: 'cancelled' }, { merge: true });
+      const act = activities.find((a) => a.id === id);
+      if (act) {
+        await logCourseRepActivity(
+          'edit',
+          'schedule',
+          id,
+          `${act.courseCode}: ${act.title}`,
+          currentUser?.name || 'Course Rep',
+          currentUser?.matricNumber || 'Rep',
+          act.departmentId || matchedDepartment?.id,
+          `Marked schedule activity as cancelled`
+        );
+      }
+    } catch (err) {
+      console.error('Error cancelling activity:', err);
+    }
+    setActivities((prev) =>
+      prev.map((act) => (act.id === id ? { ...act, status: 'cancelled' } : act))
+    );
+  };
+
+  const handlePostponeOrCancelActivity = async (id: string, status: 'postponed' | 'cancelled') => {
+    try {
+      await setDoc(doc(db, 'activities', id), { status }, { merge: true });
+      const act = activities.find((a) => a.id === id);
+      if (act) {
+        await logCourseRepActivity(
+          'edit',
+          'schedule',
+          id,
+          `${act.courseCode}: ${act.title}`,
+          currentUser?.name || 'Course Rep',
+          currentUser?.matricNumber || 'Rep',
+          act.departmentId || matchedDepartment?.id,
+          `Marked schedule activity as ${status}`
+        );
+      }
+    } catch (err) {
+      console.error('Error shifting activity status:', err);
+    }
+    setActivities((prev) =>
+      prev.map((act) => (act.id === id ? { ...act, status } : act))
+    );
+  };
+
+  const handlePostponeActivity = async (id: string, newDate: string) => {
+    try {
+      // 1. Mark existing activity as 'postponed' with the postponement target date
+      await setDoc(doc(db, 'activities', id), {
+        status: 'postponed',
+        postponedToDate: newDate
+      }, { merge: true });
+
+      // 2. Find the original activity to duplicate
+      const originalAct = activities.find((a) => a.id === id);
+      if (originalAct) {
+        // 3. Log original postpone action
+        await logCourseRepActivity(
+          'edit',
+          'schedule',
+          id,
+          `${originalAct.courseCode}: ${originalAct.title}`,
+          currentUser?.name || 'Course Rep',
+          currentUser?.matricNumber || 'Rep',
+          originalAct.departmentId || matchedDepartment?.id,
+          `Marked schedule activity as postponed to ${newDate}`
+        );
+
+        // 4. Determine DayOfWeek for the new target date
+        const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const parsedDate = new Date(newDate + 'T12:00:00'); // enforce noon timezone offset resilience
+        const dayName = days[parsedDate.getDay()] as DayOfWeek;
+
+        // 5. Build and clean duplicate payload with active status on the selected date
+        const { id: _, status: __, postponedToDate: ___, viewedBy: ____, ...rest } = originalAct;
+        const duplicatedAct: Omit<Activity, 'id'> = {
+          ...rest,
+          date: newDate,
+          day: dayName,
+          status: 'active',
+          createdBy: currentUser?.matricNumber || 'Rep',
+          viewedBy: []
+        };
+
+        const newDocRef = doc(collection(db, 'activities'));
+        await setDoc(newDocRef, cleanData(duplicatedAct));
+
+        // 6. Log the duplicated activity creation
+        await logCourseRepActivity(
+          'add',
+          'schedule',
+          newDocRef.id,
+          `${originalAct.courseCode}: ${originalAct.title}`,
+          currentUser?.name || 'Course Rep',
+          currentUser?.matricNumber || 'Rep',
+          originalAct.departmentId || matchedDepartment?.id,
+          `Created postponed makeup schedule for date ${newDate}`
+        );
+
+        setActivities((prev) => {
+          const updatedOriginal = prev.map((act) => 
+            act.id === id ? { ...act, status: 'postponed', postponedToDate: newDate } : act
+          );
+          if (!updatedOriginal.some(a => a.date === newDate && a.title === originalAct.title)) {
+            return [...updatedOriginal, { id: newDocRef.id, ...duplicatedAct }];
+          }
+          return updatedOriginal;
+        });
+      }
+    } catch (err) {
+      console.error('Error postponing activity:', err);
+    }
+  };
+
   // Deadline management actions
   const handleToggleDeadline = async (id: string) => {
     const target = deadlines.find((d) => d.id === id);
@@ -2076,6 +2193,27 @@ export default function App() {
 
     // Async push alert with department restriction
     triggerPushNotification(notif.title, notif.body, 'deadlines', dl.departmentId);
+  };
+
+  const handleUpdateDeadline = async (id: string, updatedDl: Omit<Deadline, 'id' | 'isCompleted' | 'createdBy'> & { departmentId?: string }) => {
+    try {
+      await setDoc(doc(db, 'deadlines', id), cleanData(updatedDl), { merge: true });
+      await logCourseRepActivity(
+        'edit',
+        'deadline',
+        id,
+        `${updatedDl.courseCode}: ${updatedDl.title}`,
+        currentUser?.name || 'Course Rep',
+        currentUser?.matricNumber || 'Rep',
+        updatedDl.departmentId || matchedDepartment?.id,
+        `Updated assignment deadline due details`
+      );
+    } catch (err) {
+      console.error('Error updating deadline:', err);
+    }
+    setDeadlines((prev) =>
+      prev.map((d) => (d.id === id ? { ...d, ...updatedDl } : d))
+    );
   };
 
   const handleDeleteDeadline = async (id: string) => {
@@ -2244,7 +2382,10 @@ export default function App() {
             activities={visibleActivities}
             currentUserMatric={currentUser?.matricNumber || ''}
             isCourseRep={isCourseRep}
+            isAdmin={currentUser?.role === 'admin' || currentUser?.isAdmin === true}
             onDeleteActivity={handleDeleteActivity}
+            onPostponeActivity={handlePostponeActivity}
+            onCancelActivity={handleCancelActivity}
             onEditActivity={(act) => setAddingOrEditing({ type: 'schedule', editActivity: act })}
             daySelected={daySelected}
             setDaySelected={setDaySelected}
@@ -2270,6 +2411,7 @@ export default function App() {
             selectedDate={selectedCalendarDate || new Date()}
             activities={visibleActivities}
             isCourseRep={isCourseRep}
+            isAdmin={currentUser?.role === 'admin' || currentUser?.isAdmin === true}
             onBackToCalendar={() => {
               setActiveTab('calendar' as any);
             }}
@@ -2277,6 +2419,8 @@ export default function App() {
               setAddingOrEditing({ type: 'schedule', editActivity: act });
             }}
             onDeleteActivity={handleDeleteActivity}
+            onPostponeActivity={handlePostponeActivity}
+            onCancelActivity={handleCancelActivity}
             onAddActivityClick={() => {
               setAddingOrEditing({ type: 'schedule', editActivity: null });
             }}
@@ -2290,6 +2434,9 @@ export default function App() {
             currentUserMatric={currentUser?.matricNumber || ''}
             onToggleComplete={handleToggleDeadline}
             onDeleteDeadline={handleDeleteDeadline}
+            onEditDeadline={(dl) => {
+              setAddingOrEditing({ type: 'deadline', editDeadline: dl });
+            }}
             onGetAIHelp={(source) => {
               setAiPanelSource(source);
               setIsAIPanelOpen(true);
@@ -2440,12 +2587,14 @@ export default function App() {
               <AddEditPage
                 type={addingOrEditing.type}
                 editActivity={addingOrEditing.editActivity}
+                editDeadline={addingOrEditing.editDeadline}
                 daySelected={daySelected}
                 currentUserMatric={currentUser?.matricNumber || ''}
                 initialDate={activeTab === 'date-schedule' && selectedCalendarDate ? `${selectedCalendarDate.getFullYear()}-${String(selectedCalendarDate.getMonth() + 1).padStart(2, '0')}-${String(selectedCalendarDate.getDate()).padStart(2, '0')}` : ''}
                 onAddActivity={handleAddActivity}
                 onUpdateActivity={handleUpdateActivity}
                 onAddDeadline={handleAddDeadline}
+                onUpdateDeadline={handleUpdateDeadline}
                 onAddAnnouncement={handleAddAnnouncement}
                 onCancel={() => setAddingOrEditing(null)}
                 departments={departments}

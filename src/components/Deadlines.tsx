@@ -5,7 +5,7 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Clock, Calendar, CheckCircle2, Circle, AlertTriangle, CheckSquare, Square, Trash2, CalendarCheck, HelpCircle, Eye, Image, X, Sparkles } from 'lucide-react';
+import { Clock, Calendar, CheckCircle2, Circle, AlertTriangle, CheckSquare, Square, Trash2, CalendarCheck, HelpCircle, Eye, Image, X, Sparkles, Pencil } from 'lucide-react';
 import { Deadline } from '../types';
 import GlassCard from './GlassCard';
 import ImageViewer from './ImageViewer';
@@ -16,6 +16,7 @@ interface DeadlinesProps {
   currentUserMatric: string;
   onToggleComplete: (id: string) => void;
   onDeleteDeadline: (id: string) => void;
+  onEditDeadline?: (deadline: Deadline) => void;
   onGetAIHelp?: (source: { type: 'deadline'; id: string; name: string; details?: string }) => void;
 }
 
@@ -25,6 +26,7 @@ export default function Deadlines({
   currentUserMatric,
   onToggleComplete,
   onDeleteDeadline,
+  onEditDeadline,
   onGetAIHelp
 }: DeadlinesProps) {
   const [filter, setFilter] = useState<'all' | 'pending' | 'completed'>('pending');
@@ -342,18 +344,30 @@ export default function Deadlines({
                         </div>
                       </div>
 
-                      {/* Delete action for Course Representative */}
+                      {/* Edit & Delete action for Course Representative */}
                       {isCourseRep && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setDeadlineToDelete(dl);
-                          }}
-                          className="self-start text-slate-500 hover:text-red-400 p-2 hover:bg-rose-500/10 rounded-xl transition-all cursor-pointer shrink-0"
-                          title="Delete Assignment"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-1 shrink-0 self-start">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onEditDeadline?.(dl);
+                            }}
+                            className="text-slate-500 hover:text-indigo-400 p-2 hover:bg-indigo-500/10 rounded-xl transition-all cursor-pointer"
+                            title="Edit Assignment"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeadlineToDelete(dl);
+                            }}
+                            className="text-slate-500 hover:text-red-400 p-2 hover:bg-rose-500/10 rounded-xl transition-all cursor-pointer"
+                            title="Delete Assignment"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       )}
                     </div>
                   </GlassCard>

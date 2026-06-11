@@ -51,6 +51,9 @@ export interface Activity {
   classLink?: string;
   date?: string; // e.g. "2026-06-03" (YYYY-MM-DD format)
   departmentId?: string;
+  status?: 'active' | 'postponed' | 'cancelled';
+  postponedToDate?: string;
+  postponedComment?: string;
   userName?: string; // some mock utilities include userName
   action?: string; // some mock logs specify log actions
   severity?: string; // log severity levels

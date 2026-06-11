@@ -80,12 +80,14 @@ const fileToBase64 = (file: File): Promise<string> => {
 interface AddEditPageProps {
   type: 'schedule' | 'deadline' | 'announcement';
   editActivity?: Activity | null; // If editing a schedule activity
+  editDeadline?: Deadline | null; // If editing an assignment/deadline
   daySelected: DayOfWeek;
   currentUserMatric: string;
   initialDate?: string; // e.g. "2026-06-03" (YYYY-MM-DD)
   onAddActivity: (activity: Omit<Activity, 'id' | 'createdBy'> & { departmentId?: string }) => void;
   onUpdateActivity: (id: string, updated: Omit<Activity, 'id' | 'createdBy'> & { departmentId?: string }) => void;
   onAddDeadline: (deadline: Omit<Deadline, 'id' | 'isCompleted' | 'createdBy'> & { departmentId?: string }) => void;
+  onUpdateDeadline?: (id: string, updated: Omit<Deadline, 'id' | 'isCompleted' | 'createdBy'> & { departmentId?: string }) => void;
   onAddAnnouncement: (announcement: Omit<Announcement, 'id' | 'date' | 'author'> & { departmentId?: string }) => void;
   onCancel: () => void;
   departments?: any[];
@@ -94,17 +96,19 @@ interface AddEditPageProps {
 export default function AddEditPage({
   type,
   editActivity = null,
+  editDeadline = null,
   daySelected,
   currentUserMatric,
   initialDate = '',
   onAddActivity,
   onUpdateActivity,
   onAddDeadline,
+  onUpdateDeadline,
   onAddAnnouncement,
   onCancel,
   departments = []
 }: AddEditPageProps) {
-  const isEditing = editActivity !== null;
+  const isEditing = editActivity !== null || editDeadline !== null;
 
   // Auto-match user's department by matric number pattern
   const userMatchedDept = React.useMemo(() => {
@@ -120,6 +124,9 @@ export default function AddEditPage({
   const [selectedDeptId, setSelectedDeptId] = useState<string>(() => {
     if (type === 'schedule' && editActivity) {
       return (editActivity as any).departmentId || '';
+    }
+    if (type === 'deadline' && editDeadline) {
+      return (editDeadline as any).departmentId || '';
     }
     if (userMatchedDept) {
       return userMatchedDept.id;
@@ -145,6 +152,7 @@ export default function AddEditPage({
     }
     return 'weekly';
   });
+  const [actStatus, setActStatus] = useState<'active' | 'postponed' | 'cancelled'>('active');
 
   // Deadline fields state
   const [dlTitle, setDlTitle] = useState('');
@@ -217,8 +225,20 @@ export default function AddEditPage({
       setActDelivery(editActivity.deliveryType || 'physical');
       setActLink(editActivity.classLink || '');
       setActDate(editActivity.date || '');
+      setActStatus((editActivity as any).status || 'active');
     }
   }, [type, editActivity, daySelected]);
+
+  // Hydrate states if we are editing a deadline
+  useEffect(() => {
+    if (type === 'deadline' && editDeadline) {
+      setDlTitle(editDeadline.title || '');
+      setDlCourse(editDeadline.courseCode || 'ICH 100L');
+      setDlDate(editDeadline.dueDate || '');
+      setDlDesc(editDeadline.description || '');
+      setDlImages(editDeadline.imageUrls || (editDeadline.imageUrl ? [editDeadline.imageUrl] : []));
+    }
+  }, [type, editDeadline]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -268,7 +288,8 @@ export default function AddEditPage({
         deliveryType: actDelivery,
         classLink: actDelivery === 'online' ? actLink.trim() : undefined,
         date: finalDate,
-        departmentId: finalDeptId
+        departmentId: finalDeptId,
+        status: actStatus === 'active' ? null : actStatus
       };
 
       if (isEditing && editActivity) {
@@ -294,17 +315,30 @@ export default function AddEditPage({
 
       const finalDeptId = userMatchedDept?.id || selectedDeptId || undefined;
 
-      onAddDeadline({
-        title: dlTitle.trim(),
-        courseCode: dlCourse.trim().toUpperCase(),
-        dueDate: dlDate,
-        description: dlDesc.trim() || undefined,
-        imageUrl: dlImages[0] || undefined,
-        imageUrls: dlImages.length > 0 ? dlImages : undefined,
-        departmentId: finalDeptId
-      } as any);
+      if (isEditing && editDeadline) {
+        onUpdateDeadline?.(editDeadline.id, {
+          title: dlTitle.trim(),
+          courseCode: dlCourse.trim().toUpperCase(),
+          dueDate: dlDate,
+          description: dlDesc.trim() || undefined,
+          imageUrl: dlImages[0] || undefined,
+          imageUrls: dlImages.length > 0 ? dlImages : undefined,
+          departmentId: finalDeptId
+        } as any);
+        setSuccessMsg('Assignment deadline updated successfully!');
+      } else {
+        onAddDeadline({
+          title: dlTitle.trim(),
+          courseCode: dlCourse.trim().toUpperCase(),
+          dueDate: dlDate,
+          description: dlDesc.trim() || undefined,
+          imageUrl: dlImages[0] || undefined,
+          imageUrls: dlImages.length > 0 ? dlImages : undefined,
+          departmentId: finalDeptId
+        } as any);
+        setSuccessMsg('Assignment deadline registered successfully!');
+      }
 
-      setSuccessMsg('Assignment deadline registered successfully!');
       setTimeout(() => {
         onCancel();
       }, 1000);
@@ -695,6 +729,24 @@ export default function AddEditPage({
                   className="w-full px-4 py-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-slate-100 text-xs focus:outline-none focus:border-indigo-500 transition-colors font-sans resize-none"
                 />
               </div>
+
+              {/* Schedule Status option if editing */}
+              {isEditing && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5 font-sans">
+                    Schedule Current Status
+                  </label>
+                  <select
+                    value={actStatus}
+                    onChange={(e) => setActStatus(e.target.value as any)}
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-slate-100 text-sm focus:outline-none focus:border-indigo-500 transition-colors font-sans"
+                  >
+                    <option value="active">Active (Normal) 🟢</option>
+                    <option value="postponed">Postponed 🛑</option>
+                    <option value="cancelled">Cancelled 🚫</option>
+                  </select>
+                </div>
+              )}
             </div>
           )}
 

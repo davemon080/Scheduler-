@@ -14,9 +14,12 @@ interface DateScheduleViewProps {
   selectedDate: Date;
   activities: Activity[];
   isCourseRep: boolean;
+  isAdmin?: boolean;
   onBackToCalendar: () => void;
   onEditActivity: (activity: Activity) => void;
   onDeleteActivity: (id: string) => void;
+  onPostponeActivity?: (id: string, newDate: string) => void;
+  onCancelActivity?: (id: string) => void;
   onAddActivityClick: () => void;
 }
 
@@ -26,13 +29,25 @@ export default function DateScheduleView({
   selectedDate,
   activities,
   isCourseRep,
+  isAdmin = false,
   onBackToCalendar,
   onEditActivity,
   onDeleteActivity,
+  onPostponeActivity,
+  onCancelActivity,
   onAddActivityClick
 }: DateScheduleViewProps) {
   const [deletedActivities, setDeletedActivities] = useState<Activity[]>([]);
   const [activityToDelete, setActivityToDelete] = useState<Activity | null>(null);
+  const [isPostponing, setIsPostponing] = useState(false);
+  const [postponeDate, setPostponeDate] = useState('');
+
+  useEffect(() => {
+    if (!activityToDelete) {
+      setIsPostponing(false);
+      setPostponeDate('');
+    }
+  }, [activityToDelete]);
 
   // Load deleted activities archive from local storage
   const loadDeletedActivities = () => {
@@ -207,7 +222,16 @@ export default function DateScheduleView({
                 </h3>
                 {activeSchedules.map((activity) => (
                   <div key={`active-${activity.id}`}>
-                    <GlassCard className="border-l-2 border-l-indigo-500/80 hover:border-l-indigo-400 transition-all duration-200">
+                    <GlassCard className={`relative border-l-2 hover:border-l-indigo-400 transition-all duration-200 ${
+                      activity.status === 'postponed' || activity.status === 'cancelled'
+                        ? 'border-l-slate-600 bg-slate-900/40 opacity-75'
+                        : 'border-l-indigo-500/80'
+                    }`}>
+                      {/* Crossed Red line for postponed or cancelled schedules */}
+                      {(activity.status === 'postponed' || activity.status === 'cancelled') && (
+                        <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-red-500/80 z-20 shadow-[0_0_8px_rgba(239,68,68,0.8)] pointer-events-none" />
+                      )}
+
                       <div className="flex flex-col gap-3">
                         <div className="flex items-start justify-between gap-3">
                           <div className="space-y-1.5 min-w-0">
@@ -215,6 +239,19 @@ export default function DateScheduleView({
                               <span className="text-sm font-mono font-black tracking-wide text-indigo-400 bg-slate-950/60 px-2.5 py-0.5 rounded border border-indigo-500/20 uppercase">
                                 {activity.courseCode}
                               </span>
+
+                              {activity.status === 'postponed' && (
+                                <span className="text-[8px] font-sans font-extrabold px-2 py-0.5 rounded-full border border-red-500/30 text-red-400 bg-red-500/10 flex items-center gap-1 shrink-0 animate-pulse">
+                                  Postponed 🛑
+                                </span>
+                              )}
+
+                              {activity.status === 'cancelled' && (
+                                <span className="text-[8px] font-sans font-extrabold px-2 py-0.5 rounded-full border border-red-500/30 text-red-300 bg-red-500/10 flex items-center gap-1 shrink-0 animate-pulse">
+                                  Cancelled 🚫
+                                </span>
+                              )}
+
                               <span className={`text-[8px] font-sans font-medium px-2 py-0.5 rounded-full border ${getCategoryColor(activity.category)}`}>
                                 {activity.category}
                               </span>
@@ -234,9 +271,21 @@ export default function DateScheduleView({
                               )}
                             </div>
 
-                            <h4 className="text-sm font-display font-extrabold text-slate-100 leading-tight">
-                              {activity.title}
-                            </h4>
+                            <div className="space-y-1">
+                              <h4 className="text-sm font-display font-extrabold text-slate-100 leading-tight">
+                                {activity.title}
+                              </h4>
+                              {activity.status === 'postponed' && (
+                                <span className="inline-block text-[10px] font-bold font-mono text-red-400 bg-red-500/10 border border-red-500/20 px-2 py-0.5 rounded uppercase">
+                                  ⚠️ Postponed {activity.postponedToDate ? `to ${activity.postponedToDate}` : ''}
+                                </span>
+                              )}
+                              {activity.status === 'cancelled' && (
+                                <span className="inline-block text-[10px] font-bold font-mono text-red-500 bg-red-500/10 border border-red-500/20 px-2 py-0.5 rounded uppercase">
+                                  ⚠️ Cancelled
+                                </span>
+                              )}
+                            </div>
 
                             {activity.description && (
                               <p className="text-[11px] text-slate-400 leading-normal font-sans">
@@ -377,35 +426,111 @@ export default function DateScheduleView({
       {/* Single activity deletion dialog panel confirmation */}
       {activityToDelete && (
         <div className="fixed inset-0 bg-slate-950/80 z-[1000] flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl max-w-sm w-full space-y-4 shadow-2xl">
-            <div className="w-12 h-12 rounded-full bg-rose-500/15 text-rose-400 flex items-center justify-center text-xl font-bold mx-auto border border-rose-500/20">
-              <AlertTriangle className="w-5 h-5 text-rose-400" />
+          <div className="bg-[#0f172a]/95 border border-slate-800 p-6 rounded-3xl max-w-sm w-full space-y-4 shadow-2xl">
+            <div className="w-12 h-12 rounded-full bg-indigo-500/10 text-indigo-400 flex items-center justify-center text-xl font-bold mx-auto border border-indigo-500/20 animate-bounce">
+              <AlertTriangle className="w-5 h-5 text-indigo-400" />
             </div>
             <div className="text-center space-y-1">
-              <h4 className="text-slate-100 font-display font-bold text-base">Delete Class Schedule?</h4>
+              <h4 className="text-slate-100 font-display font-black text-base">
+                {isAdmin ? 'Delete Class Schedule?' : 'Postpone or Cancel Schedule?'}
+              </h4>
               <p className="text-xs text-slate-400 leading-relaxed font-sans">
-                Are you sure you want to completely erase "{activityToDelete.title}" from the class timeline? All students will lose realtime visibility.
+                {isAdmin
+                  ? `Are you sure you want to completely erase "${activityToDelete.title}"? This action cannot be undone.`
+                  : `Select whether "${activityToDelete.title}" has been postponed to another slot, or if the class is cancelled.`}
               </p>
             </div>
-            <div className="flex gap-2.5">
-              <button
-                type="button"
-                onClick={() => setActivityToDelete(null)}
-                className="flex-1 py-2.5 bg-slate-850 hover:bg-slate-800 text-slate-300 rounded-xl text-xs font-bold transition-all cursor-pointer"
-              >
-                Keep Event
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  onDeleteActivity(activityToDelete.id);
-                  setActivityToDelete(null);
-                }}
-                className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold transition-all hover:shadow-[0_4px_16px_rgba(244,63,94,0.3)] cursor-pointer"
-              >
-                Confirm Deletion
-              </button>
-            </div>
+
+            {isAdmin ? (
+              <div className="flex gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setActivityToDelete(null)}
+                  className="flex-1 py-2.5 bg-slate-850 hover:bg-slate-800 text-slate-300 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                >
+                  Keep Event
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onDeleteActivity(activityToDelete.id!);
+                    setActivityToDelete(null);
+                  }}
+                  className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold transition-all hover:shadow-[0_4px_16px_rgba(244,63,94,0.3)] cursor-pointer"
+                >
+                  Confirm Deletion
+                </button>
+              </div>
+            ) : isPostponing ? (
+              <div className="space-y-4 pt-1 text-left">
+                <div>
+                  <label className="block text-xs font-bold font-sans text-indigo-400 mb-1.5 uppercase tracking-wider">
+                    Select Postponed Date
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    min={new Date().toISOString().split('T')[0]}
+                    value={postponeDate}
+                    onChange={(e) => setPostponeDate(e.target.value)}
+                    className="w-full bg-slate-950/80 border border-slate-800 text-sm text-white px-3 py-2.5 rounded-xl outline-none focus:border-indigo-50/50 focus:ring-1 focus:ring-indigo-500/50"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsPostponing(false)}
+                    className="flex-1 py-1.5 bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-300 rounded-xl text-xs font-bold transition-all cursor-pointer text-center"
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!postponeDate}
+                    onClick={() => {
+                      if (postponeDate && onPostponeActivity) {
+                        onPostponeActivity(activityToDelete.id!, postponeDate);
+                        setActivityToDelete(null);
+                      }
+                    }}
+                    className="flex-1 py-1.5 bg-amber-500 hover:bg-amber-450 disabled:bg-slate-800 disabled:text-slate-600 text-slate-950 rounded-xl text-xs font-extrabold transition-all cursor-pointer hover:shadow-[0_4px_12px_rgba(245,158,11,0.25)] text-center flex items-center justify-center"
+                  >
+                    Confirm
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsPostponing(true);
+                  }}
+                  className="w-full py-2.5 bg-amber-500 hover:bg-amber-450 text-slate-950 rounded-xl text-xs font-black transition-all cursor-pointer hover:shadow-[0_4px_12px_rgba(245,158,11,0.25)] text-center flex items-center justify-center gap-1.5"
+                >
+                  Postpone Class 🛑
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onCancelActivity) {
+                      onCancelActivity(activityToDelete.id!);
+                      setActivityToDelete(null);
+                    }
+                  }}
+                  className="w-full py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-black transition-all cursor-pointer hover:shadow-[0_4px_12px_rgba(244,63,94,0.25)] text-center flex items-center justify-center gap-1.5"
+                >
+                  Cancel Class 🚫
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActivityToDelete(null)}
+                  className="w-full py-2 bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-400 rounded-xl text-xs font-bold transition-all cursor-pointer text-center"
+                >
+                  Close / Nevermind
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
