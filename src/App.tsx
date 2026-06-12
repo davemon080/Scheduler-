@@ -1234,6 +1234,48 @@ export default function App() {
               };
               setNotifications((prev) => [notif, ...prev]);
             }
+          } else if (change.type === 'modified') {
+            const data = change.doc.data() as Activity;
+            const docId = change.doc.id;
+            const actDeptId = data.departmentId || 'dept-ps-ich';
+
+            if (matchedDepartment?.id === actDeptId && data.createdBy !== currentUser.matricNumber) {
+              let notifTitle = '';
+              let notifBody = '';
+              let priority: 'high' | 'info' = 'info';
+
+              if (data.status === 'cancelled') {
+                notifTitle = 'Class Cancelled! 🚫';
+                notifBody = `${data.courseCode || 'ICH100L'}: "${data.title}" on ${data.day} has been CANCELLED.`;
+                priority = 'high';
+              } else if (data.status === 'postponed') {
+                const targetDate = data.postponedToDate ? ` to ${data.postponedToDate}` : '';
+                notifTitle = 'Class Postponed 🛑';
+                notifBody = `${data.courseCode || 'ICH100L'}: "${data.title}" on ${data.day} has been POSTPONED${targetDate}.`;
+                priority = 'high';
+              } else {
+                notifTitle = 'Class Details Updated 🔄';
+                notifBody = `${data.courseCode || 'ICH100L'}: "${data.title}" schedule details updated: ${data.day} ${data.timeStart}-${data.timeEnd} at ${data.location}.`;
+              }
+
+              if (notifTitle && notifBody) {
+                const notif: NotificationItem = {
+                  id: `notif-act-mod-${data.status || 'details'}-${docId}`,
+                  type: 'schedule',
+                  title: notifTitle,
+                  body: notifBody,
+                  time: 'Just now',
+                  isRead: false,
+                  priority: priority,
+                  referenceTab: 'schedule',
+                  departmentId: actDeptId
+                };
+                setNotifications((prev) => {
+                  if (prev.some((p) => p.id === notif.id || p.body === notif.body)) return prev;
+                  return [notif, ...prev];
+                });
+              }
+            }
           }
         });
       }
@@ -1286,6 +1328,31 @@ export default function App() {
                   return [notif, ...prev];
                 });
               }
+            }
+          } else if (change.type === 'modified') {
+            const data = change.doc.data() as Deadline;
+            const docId = change.doc.id;
+            const dlDeptId = data.departmentId || 'dept-ps-ich';
+
+            if (matchedDepartment?.id === dlDeptId && data.createdBy !== currentUser.matricNumber) {
+              const notifTitle = 'Deadline Updated ⏰';
+              const notifBody = `${data.courseCode || 'ICH100L'}: "${data.title}" due details/date has been updated to: ${data.dueDate}.`;
+              
+              const notif: NotificationItem = {
+                id: `notif-dl-mod-${data.dueDate}-${docId}`,
+                type: 'deadline',
+                title: notifTitle,
+                body: notifBody,
+                time: 'Just now',
+                isRead: false,
+                priority: 'high',
+                referenceTab: 'deadlines',
+                departmentId: dlDeptId
+              };
+              setNotifications((prev) => {
+                if (prev.some(p => p.id === notif.id || p.body === notif.body)) return prev;
+                return [notif, ...prev];
+              });
             }
           }
         });
@@ -1476,6 +1543,9 @@ export default function App() {
         const isToday = act.date ? (act.date === todayDateStr) : (act.day === currentDayName);
         if (!isToday) return;
 
+        const isEndAvailable = act.timeEnd && act.timeEnd.includes(':');
+        if (!isEndAvailable) return;
+
         const [startH, startM] = act.timeStart.split(':').map(Number);
         const [endH, endM] = act.timeEnd.split(':').map(Number);
         const startMinutes = startH * 60 + startM;
@@ -1528,6 +1598,8 @@ export default function App() {
         // Skip if marked complete by current user
         const isCompleted = dl.completedBy ? !!dl.completedBy[currentUser.matricNumber] : dl.isCompleted;
         if (isCompleted) return;
+
+        if (dl.dueDate === 'Not available yet') return;
 
         const dueTime = new Date(dl.dueDate).getTime();
         const todayTime = new Date(todayDateStr).getTime();
@@ -1979,6 +2051,23 @@ export default function App() {
         updatedAct.departmentId || matchedDepartment?.id,
         `Updated scheduled details for ${updatedAct.day} ${updatedAct.timeStart}-${updatedAct.timeEnd}`
       );
+
+      const notifTitle = 'Class Details Updated 🔄';
+      const notifBody = `${updatedAct.courseCode}: "${updatedAct.title}" schedule details have been updated.`;
+      triggerPushNotification(notifTitle, notifBody, 'schedule', updatedAct.departmentId);
+
+      const notif: NotificationItem = {
+        id: `notif-act-mod-details-${id}`,
+        type: 'schedule',
+        title: notifTitle,
+        body: notifBody,
+        time: 'Just now',
+        isRead: false,
+        priority: 'info',
+        referenceTab: 'schedule',
+        departmentId: updatedAct.departmentId
+      };
+      setNotifications((prev) => [notif, ...prev]);
     } catch (err) {
       console.error('Error updating activity:', err);
     }
@@ -2027,6 +2116,23 @@ export default function App() {
           act.departmentId || matchedDepartment?.id,
           `Marked schedule activity as cancelled`
         );
+
+        const notifTitle = 'Class Cancelled! 🚫';
+        const notifBody = `${act.courseCode || 'ICH100L'}: "${act.title}" on ${act.day} has been CANCELLED.`;
+        triggerPushNotification(notifTitle, notifBody, 'schedule', act.departmentId);
+
+        const notif: NotificationItem = {
+          id: `notif-act-mod-cancelled-${act.id}`,
+          type: 'schedule',
+          title: notifTitle,
+          body: notifBody,
+          time: 'Just now',
+          isRead: false,
+          priority: 'high',
+          referenceTab: 'schedule',
+          departmentId: act.departmentId
+        };
+        setNotifications((prev) => [notif, ...prev]);
       }
     } catch (err) {
       console.error('Error cancelling activity:', err);
@@ -2051,6 +2157,23 @@ export default function App() {
           act.departmentId || matchedDepartment?.id,
           `Marked schedule activity as ${status}`
         );
+
+        const notifTitle = status === 'cancelled' ? 'Class Cancelled! 🚫' : 'Class Postponed 🛑';
+        const notifBody = `${act.courseCode || 'ICH100L'}: "${act.title}" on ${act.day} has been ${status.toUpperCase()}.`;
+        triggerPushNotification(notifTitle, notifBody, 'schedule', act.departmentId);
+
+        const notif: NotificationItem = {
+          id: `notif-act-mod-${status}-${act.id}`,
+          type: 'schedule',
+          title: notifTitle,
+          body: notifBody,
+          time: 'Just now',
+          isRead: false,
+          priority: 'high',
+          referenceTab: 'schedule',
+          departmentId: act.departmentId
+        };
+        setNotifications((prev) => [notif, ...prev]);
       }
     } catch (err) {
       console.error('Error shifting activity status:', err);
@@ -2082,6 +2205,23 @@ export default function App() {
           originalAct.departmentId || matchedDepartment?.id,
           `Marked schedule activity as postponed to ${newDate}`
         );
+
+        const notifTitle = 'Class Postponed 🛑';
+        const notifBody = `${originalAct.courseCode || 'ICH100L'}: "${originalAct.title}" on ${originalAct.day} has been POSTPONED to ${newDate}.`;
+        triggerPushNotification(notifTitle, notifBody, 'schedule', originalAct.departmentId);
+
+        const notif: NotificationItem = {
+          id: `notif-act-mod-postponed-${originalAct.id}`,
+          type: 'schedule',
+          title: notifTitle,
+          body: notifBody,
+          time: 'Just now',
+          isRead: false,
+          priority: 'high',
+          referenceTab: 'schedule',
+          departmentId: originalAct.departmentId
+        };
+        setNotifications((prev) => [notif, ...prev]);
 
         // 4. Determine DayOfWeek for the new target date
         const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -2208,6 +2348,23 @@ export default function App() {
         updatedDl.departmentId || matchedDepartment?.id,
         `Updated assignment deadline due details`
       );
+
+      const notifTitle = 'Assignment Details Updated 🔄';
+      const notifBody = `${updatedDl.courseCode}: "${updatedDl.title}" due details/guidelines have been updated.`;
+      triggerPushNotification(notifTitle, notifBody, 'deadlines', updatedDl.departmentId);
+
+      const notif: NotificationItem = {
+        id: `notif-dl-mod-details-${id}`,
+        type: 'deadline',
+        title: notifTitle,
+        body: notifBody,
+        time: 'Just now',
+        isRead: false,
+        priority: 'high',
+        referenceTab: 'deadlines',
+        departmentId: updatedDl.departmentId
+      };
+      setNotifications((prev) => [notif, ...prev]);
     } catch (err) {
       console.error('Error updating deadline:', err);
     }

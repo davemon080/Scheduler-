@@ -59,6 +59,10 @@ export default function Deadlines({
       return { text: 'Submitted & Checked', color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20', isLapsed: false };
     }
 
+    if (dueDateStr === 'Not available yet') {
+      return { text: 'Not available yet', color: 'text-amber-300 bg-amber-500/10 border-amber-500/20', isLapsed: false };
+    }
+
     const today = new Date();
     // Normalize hours to begin of day for calculation
     today.setHours(0, 0, 0, 0);

@@ -122,6 +122,8 @@ export default function Scheduler({
       const [startH, startM] = activity.timeStart.split(':').map(Number);
       const startTotal = startH * 60 + startM;
 
+      if (!activity.timeEnd || !activity.timeEnd.includes(':')) return false;
+
       const [endH, endM] = activity.timeEnd.split(':').map(Number);
       const endTotal = endH * 60 + endM;
 

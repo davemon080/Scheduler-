@@ -260,19 +260,74 @@ export default function ProfileView({
       setIsIframe(true);
     }
 
-    // Check active service worker push subscription
+          // Check active service worker push subscription
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.ready.then((reg) => {
         reg.pushManager.getSubscription().then((sub) => {
           setIsPushSubscribed(!!sub);
           // Auto-sync existing subscription to server so it is never lost or pruned by other logins/resets
           if (sub && user?.matricNumber) {
+            const rawSubJSON = sub.toJSON();
+            let p256dhVal = rawSubJSON.keys?.p256dh || '';
+            let authVal = rawSubJSON.keys?.auth || '';
+
+            if (!p256dhVal && typeof sub.getKey === 'function') {
+              try {
+                const p256dhBuffer = sub.getKey('p256dh');
+                if (p256dhBuffer) {
+                  p256dhVal = btoa(String.fromCharCode.apply(null, Array.from(new Uint8Array(p256dhBuffer))))
+                    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+                }
+              } catch (errKey) {
+                console.warn('[ProfileView] getKey p256dh error:', errKey);
+              }
+            }
+
+            if (!authVal && typeof sub.getKey === 'function') {
+              try {
+                const authBuffer = sub.getKey('auth');
+                if (authBuffer) {
+                  authVal = btoa(String.fromCharCode.apply(null, Array.from(new Uint8Array(authBuffer))))
+                    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+                }
+              } catch (errKey) {
+                console.warn('[ProfileView] getKey auth error:', errKey);
+              }
+            }
+
+            const serializedSub = {
+              endpoint: sub.endpoint || rawSubJSON.endpoint,
+              expirationTime: sub.expirationTime || rawSubJSON.expirationTime || null,
+              keys: {
+                p256dh: p256dhVal,
+                auth: authVal
+              }
+            };
+
+            const isStandalone = window.matchMedia('(display-mode: standalone)').matches || 
+                                 (navigator as any).standalone === true;
+            const userAgent = navigator.userAgent || '';
+            let platform = 'Web';
+            const isIOSDevice = /iPad|iPhone|iPod/.test(userAgent) || (window.navigator.maxTouchPoints && window.navigator.maxTouchPoints > 2 && /Macintosh/.test(userAgent));
+            if (isIOSDevice) {
+              platform = 'iOS';
+            } else if (/Android/.test(userAgent)) {
+              platform = 'Android';
+            } else if (/Macintosh/.test(userAgent)) {
+              platform = 'macOS';
+            } else if (/Windows/.test(userAgent)) {
+              platform = 'Windows';
+            }
+
             fetch('/api/push-subscribe', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                subscription: sub,
-                matricNumber: user.matricNumber
+                subscription: serializedSub,
+                matricNumber: user.matricNumber,
+                name: user?.name || 'Guest',
+                isStandalone,
+                platform
               })
             }).catch((err) => {
               console.warn('[ProfileView] Auto-sync silent push setup failure:', err);

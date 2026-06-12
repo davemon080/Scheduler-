@@ -668,17 +668,43 @@ export default function AddEditPage({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5 font-sans flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5 text-rose-400" />
-                    <span>End Time</span>
-                  </label>
-                  <input
-                    type="time"
-                    required
-                    value={actEnd}
-                    onChange={(e) => setActEnd(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-slate-100 text-sm focus:outline-none focus:border-indigo-500 transition-colors font-mono"
-                  />
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-300 font-sans flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5 text-rose-400" />
+                      <span>End Time</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (actEnd === 'Not available yet') {
+                          setActEnd('11:00');
+                        } else {
+                          setActEnd('Not available yet');
+                        }
+                      }}
+                      className={`text-[10px] px-2 py-0.5 rounded-md border font-medium ${
+                        actEnd === 'Not available yet'
+                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                          : 'bg-slate-950/60 text-slate-400 border-slate-800 hover:text-slate-200'
+                      }`}
+                    >
+                      {actEnd === 'Not available yet' ? 'Not Available' : 'Set Not Available'}
+                    </button>
+                  </div>
+                  {actEnd === 'Not available yet' ? (
+                    <div className="w-full px-4 py-2.5 rounded-xl bg-amber-500/5 border border-amber-500/20 text-amber-300 text-sm font-sans flex items-center justify-between">
+                      <span>Not available yet</span>
+                      <span className="text-[10px] text-amber-400 font-medium">TBD</span>
+                    </div>
+                  ) : (
+                    <input
+                      type="time"
+                      required
+                      value={actEnd}
+                      onChange={(e) => setActEnd(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-slate-100 text-sm focus:outline-none focus:border-indigo-500 transition-colors font-mono"
+                    />
+                  )}
                 </div>
               </div>
 
@@ -785,17 +811,43 @@ export default function AddEditPage({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5 font-sans flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5 text-indigo-400" />
-                    <span>Due Date</span>
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={dlDate}
-                    onChange={(e) => setDlDate(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-slate-100 text-sm focus:outline-none focus:border-indigo-500 transition-colors font-mono"
-                  />
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-300 font-sans flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>Due Date</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (dlDate === 'Not available yet') {
+                          setDlDate(new Date().toISOString().split('T')[0]);
+                        } else {
+                          setDlDate('Not available yet');
+                        }
+                      }}
+                      className={`text-[10px] px-2 py-0.5 rounded-md border font-medium ${
+                        dlDate === 'Not available yet'
+                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                          : 'bg-slate-950/60 text-slate-400 border-slate-800 hover:text-slate-200'
+                      }`}
+                    >
+                      {dlDate === 'Not available yet' ? 'Not Available' : 'Set Not Available'}
+                    </button>
+                  </div>
+                  {dlDate === 'Not available yet' ? (
+                    <div className="w-full px-4 py-2.5 rounded-xl bg-amber-500/5 border border-amber-500/20 text-amber-300 text-sm font-sans flex items-center justify-between">
+                      <span>Not available yet</span>
+                      <span className="text-[10px] text-amber-400 font-medium">TBD</span>
+                    </div>
+                  ) : (
+                    <input
+                      type="date"
+                      required
+                      value={dlDate}
+                      onChange={(e) => setDlDate(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-slate-100 text-sm focus:outline-none focus:border-indigo-500 transition-colors font-mono"
+                    />
+                  )}
                 </div>
               </div>
 
