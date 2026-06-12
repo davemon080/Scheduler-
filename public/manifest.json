@@ -1,6 +1,6 @@
 {
-  "short_name": "ICH 100L",
-  "name": "ICH 100L Class Board",
+  "short_name": "Scheduler",
+  "name": "Scheduler",
   "description": "Real-time schedules, deadlines, broadcasts, and PDF modules for Chemistry 100L. Complete offline-compatible portal.",
   "id": "/",
   "scope": "/",

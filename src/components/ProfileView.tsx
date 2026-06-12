@@ -1530,22 +1530,10 @@ export default function ProfileView({
                     </p>
                   </div>
                   
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={isBiometricEnrolled}
-                      onClick={isBiometricEnrolled ? handleRemoveBiometrics : handleEnrollBiometrics}
-                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-900 ${
-                        isBiometricEnrolled ? 'bg-indigo-600' : 'bg-slate-800'
-                      }`}
-                    >
-                      <span
-                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                          isBiometricEnrolled ? 'translate-x-5' : 'translate-x-0'
-                        }`}
-                      />
-                    </button>
+                  <div className="flex items-center">
+                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded">
+                      Coming Soon
+                    </span>
                   </div>
                 </div>
 
@@ -1553,17 +1541,10 @@ export default function ProfileView({
 
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-sans text-slate-500">Device Status:</span>
-                  {isBiometricEnrolled ? (
-                    <div className="text-emerald-400 text-[10px] font-mono tracking-wide font-bold uppercase flex items-center gap-1.5 bg-emerald-950/45 border border-emerald-500/20 px-2.5 py-0.5 rounded-full">
-                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>Enrolled & Ready</span>
-                    </div>
-                  ) : (
-                    <div className="text-slate-400 text-[10px] font-mono tracking-wide font-bold uppercase flex items-center gap-1.5 bg-slate-950 border border-slate-800 px-2.5 py-0.5 rounded-full">
-                      <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
-                      <span>Not Registered</span>
-                    </div>
-                  )}
+                  <div className="text-slate-400 text-[10px] font-mono tracking-wide font-bold uppercase flex items-center gap-1.5 bg-slate-950 border border-slate-800 px-2.5 py-0.5 rounded-full">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                    <span>In Development</span>
+                  </div>
                 </div>
               </div>
 
