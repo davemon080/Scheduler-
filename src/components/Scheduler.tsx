@@ -546,13 +546,13 @@ export default function Scheduler({
               </div>
 
               <h3 className="text-center text-lg font-display font-black text-slate-100 tracking-tight">
-                {isAdmin ? 'Delete Class Schedule?' : 'Postpone or Cancel Schedule?'}
+                {isAdmin ? 'Delete Class Schedule?' : 'Modify Class Schedule?'}
               </h3>
               
               <p className="text-center text-xs text-slate-400 leading-relaxed font-sans mt-2">
                 {isAdmin
                   ? `Are you sure you want to completely erase "${activityToDelete.title}"? This action cannot be undone.`
-                  : `Select whether "${activityToDelete.title}" has been postponed to another slot, or if the class is cancelled.`}
+                  : `Select whether "${activityToDelete.title}" should be postponed, marked as cancelled, or deleted completely.`}
               </p>
 
               {isAdmin ? (
@@ -614,13 +614,13 @@ export default function Scheduler({
                   </div>
                 </div>
               ) : (
-                <div className="space-y-4 mt-6">
+                <div className="space-y-3 mt-6">
                   <button
                     type="button"
                     onClick={() => {
                       setIsPostponing(true);
                     }}
-                    className="w-full py-2.5 bg-amber-500 hover:bg-amber-450 text-slate-950 rounded-xl text-xs font-black transition-all cursor-pointer hover:shadow-[0_4px_12px_rgba(245,158,11,0.25)] text-center flex items-center justify-center gap-1.5"
+                    className="w-full py-2.5 bg-amber-500 hover:bg-amber-450 text-slate-950 rounded-xl text-xs font-black transition-all cursor-pointer hover:shadow-[0_4px_12px_rgba(245,158,11,0.25)] text-center flex items-center justify-center gap-1.5 font-sans"
                   >
                     Postpone Class 🛑
                   </button>
@@ -632,14 +632,26 @@ export default function Scheduler({
                         setActivityToDelete(null);
                       }
                     }}
-                    className="w-full py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-black transition-all cursor-pointer hover:shadow-[0_4px_12px_rgba(244,63,94,0.25)] text-center flex items-center justify-center gap-1.5"
+                    className="w-full py-2.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 rounded-xl text-xs font-bold transition-all cursor-pointer text-center flex items-center justify-center gap-1.5 font-sans"
                   >
                     Cancel Class 🚫
                   </button>
                   <button
                     type="button"
+                    onClick={() => {
+                      if (confirm(`Are you absolutely sure you want to permanently delete "${activityToDelete.title}" completely? This cannot be undone.`)) {
+                        onDeleteActivity(activityToDelete.id!);
+                        setActivityToDelete(null);
+                      }
+                    }}
+                    className="w-full py-2.5 bg-rose-650 hover:bg-rose-600 text-white rounded-xl text-xs font-black transition-all cursor-pointer hover:shadow-[0_4px_12px_rgba(225,29,72,0.25)] text-center flex items-center justify-center gap-1.5 font-sans"
+                  >
+                    Delete Completely 🗑️
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => setActivityToDelete(null)}
-                    className="w-full py-2 bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-400 rounded-xl text-xs font-bold transition-all cursor-pointer text-center animate-pulse"
+                    className="w-full py-2 bg-slate-905 hover:bg-slate-900 border border-slate-800 text-slate-400 rounded-xl text-xs font-bold transition-all cursor-pointer text-center font-sans mt-1"
                   >
                     Close / Nevermind
                   </button>

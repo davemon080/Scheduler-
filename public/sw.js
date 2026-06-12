@@ -195,12 +195,20 @@ self.addEventListener('push', (event) => {
 
   console.log('[PWA SW] Triggering showNotification via self.registration instance. Title:', data.title, 'Options:', options);
 
-  const notificationPromise = self.registration.showNotification(data.title || 'ICH 100L Alerts 🔔', options)
-    .then(() => {
-      console.log('[PWA SW] showNotification completed successfully.');
+  const notificationPromise = self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+    .then((clientList) => {
+      const hasFocusedClient = clientList.some(client => client.focused);
+      if (hasFocusedClient) {
+        console.log('[PWA SW] App is active and focused in the foreground. Skipped native push alert to prevent duplicated notifications.');
+        return;
+      }
+      return self.registration.showNotification(data.title || 'ICH 100L Alerts 🔔', options)
+        .then(() => {
+          console.log('[PWA SW] showNotification completed successfully.');
+        });
     })
     .catch((err) => {
-      console.error('[PWA SW] showNotification failed with error:', err);
+      console.error('[PWA SW] showNotification check or execution failed with error:', err);
     });
 
   // Safe App Badge Update

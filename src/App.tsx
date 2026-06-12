@@ -63,12 +63,12 @@ function isRecentlyCreatedCustomId(id: string): boolean {
   return false;
 }
 
-const triggerPushNotification = async (title: string, body: string, category: string, departmentId?: string) => {
+const triggerPushNotification = async (title: string, body: string, category: string, departmentId?: string, excludeMatric?: string) => {
   try {
     await fetch('/api/send-broadcast-push', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, body, category, departmentId })
+      body: JSON.stringify({ title, body, category, departmentId, excludeMatric })
     });
   } catch (err) {
     console.warn('Failed to trigger background push notification:', err);
@@ -2032,7 +2032,7 @@ export default function App() {
     setNotifications((prev) => [notif, ...prev]);
 
     // Async push alert with departmentId constraint
-    triggerPushNotification(notif.title, notif.body, 'schedule', act.departmentId);
+    triggerPushNotification(notif.title, notif.body, 'schedule', act.departmentId, currentUser?.matricNumber);
   };
 
   const handleUpdateActivity = async (id: string, updatedAct: Omit<Activity, 'id' | 'createdBy'> & { departmentId?: string }) => {
@@ -2054,7 +2054,7 @@ export default function App() {
 
       const notifTitle = 'Class Details Updated 🔄';
       const notifBody = `${updatedAct.courseCode}: "${updatedAct.title}" schedule details have been updated.`;
-      triggerPushNotification(notifTitle, notifBody, 'schedule', updatedAct.departmentId);
+      triggerPushNotification(notifTitle, notifBody, 'schedule', updatedAct.departmentId, currentUser?.matricNumber);
 
       const notif: NotificationItem = {
         id: `notif-act-mod-details-${id}`,
@@ -2119,7 +2119,7 @@ export default function App() {
 
         const notifTitle = 'Class Cancelled! 🚫';
         const notifBody = `${act.courseCode || 'ICH100L'}: "${act.title}" on ${act.day} has been CANCELLED.`;
-        triggerPushNotification(notifTitle, notifBody, 'schedule', act.departmentId);
+        triggerPushNotification(notifTitle, notifBody, 'schedule', act.departmentId, currentUser?.matricNumber);
 
         const notif: NotificationItem = {
           id: `notif-act-mod-cancelled-${act.id}`,
@@ -2160,7 +2160,7 @@ export default function App() {
 
         const notifTitle = status === 'cancelled' ? 'Class Cancelled! 🚫' : 'Class Postponed 🛑';
         const notifBody = `${act.courseCode || 'ICH100L'}: "${act.title}" on ${act.day} has been ${status.toUpperCase()}.`;
-        triggerPushNotification(notifTitle, notifBody, 'schedule', act.departmentId);
+        triggerPushNotification(notifTitle, notifBody, 'schedule', act.departmentId, currentUser?.matricNumber);
 
         const notif: NotificationItem = {
           id: `notif-act-mod-${status}-${act.id}`,
@@ -2208,7 +2208,7 @@ export default function App() {
 
         const notifTitle = 'Class Postponed 🛑';
         const notifBody = `${originalAct.courseCode || 'ICH100L'}: "${originalAct.title}" on ${originalAct.day} has been POSTPONED to ${newDate}.`;
-        triggerPushNotification(notifTitle, notifBody, 'schedule', originalAct.departmentId);
+        triggerPushNotification(notifTitle, notifBody, 'schedule', originalAct.departmentId, currentUser?.matricNumber);
 
         const notif: NotificationItem = {
           id: `notif-act-mod-postponed-${originalAct.id}`,
@@ -2332,7 +2332,7 @@ export default function App() {
     setNotifications((prev) => [notif, ...prev]);
 
     // Async push alert with department restriction
-    triggerPushNotification(notif.title, notif.body, 'deadlines', dl.departmentId);
+    triggerPushNotification(notif.title, notif.body, 'deadlines', dl.departmentId, currentUser?.matricNumber);
   };
 
   const handleUpdateDeadline = async (id: string, updatedDl: Omit<Deadline, 'id' | 'isCompleted' | 'createdBy'> & { departmentId?: string }) => {
@@ -2351,7 +2351,7 @@ export default function App() {
 
       const notifTitle = 'Assignment Details Updated 🔄';
       const notifBody = `${updatedDl.courseCode}: "${updatedDl.title}" due details/guidelines have been updated.`;
-      triggerPushNotification(notifTitle, notifBody, 'deadlines', updatedDl.departmentId);
+      triggerPushNotification(notifTitle, notifBody, 'deadlines', updatedDl.departmentId, currentUser?.matricNumber);
 
       const notif: NotificationItem = {
         id: `notif-dl-mod-details-${id}`,
@@ -2440,7 +2440,7 @@ export default function App() {
     setNotifications((prev) => [notif, ...prev]);
 
     // Async push alert with department constraint
-    triggerPushNotification(notif.title, notif.body, 'announcements', ann.departmentId);
+    triggerPushNotification(notif.title, notif.body, 'announcements', ann.departmentId, currentUser?.matricNumber);
   };
 
   const handleDeleteAnnouncement = async (id: string) => {

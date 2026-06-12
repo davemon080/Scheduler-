@@ -432,12 +432,12 @@ export default function DateScheduleView({
             </div>
             <div className="text-center space-y-1">
               <h4 className="text-slate-100 font-display font-black text-base">
-                {isAdmin ? 'Delete Class Schedule?' : 'Postpone or Cancel Schedule?'}
+                {isAdmin ? 'Delete Class Schedule?' : 'Modify Class Schedule?'}
               </h4>
               <p className="text-xs text-slate-400 leading-relaxed font-sans">
                 {isAdmin
                   ? `Are you sure you want to completely erase "${activityToDelete.title}"? This action cannot be undone.`
-                  : `Select whether "${activityToDelete.title}" has been postponed to another slot, or if the class is cancelled.`}
+                  : `Select whether "${activityToDelete.title}" should be postponed, marked as cancelled, or deleted completely.`}
               </p>
             </div>
 
@@ -500,7 +500,7 @@ export default function DateScheduleView({
                 </div>
               </div>
             ) : (
-              <div className="space-y-2 pt-1">
+              <div className="space-y-2.5 pt-1">
                 <button
                   type="button"
                   onClick={() => {
@@ -518,14 +518,26 @@ export default function DateScheduleView({
                       setActivityToDelete(null);
                     }
                   }}
-                  className="w-full py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-black transition-all cursor-pointer hover:shadow-[0_4px_12px_rgba(244,63,94,0.25)] text-center flex items-center justify-center gap-1.5"
+                  className="w-full py-2.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 rounded-xl text-xs font-bold transition-all cursor-pointer text-center flex items-center justify-center gap-1.5"
                 >
                   Cancel Class 🚫
                 </button>
                 <button
                   type="button"
+                  onClick={() => {
+                    if (confirm(`Are you absolutely sure you want to permanently delete "${activityToDelete.title}" completely? This cannot be undone.`)) {
+                      onDeleteActivity(activityToDelete.id!);
+                      setActivityToDelete(null);
+                    }
+                  }}
+                  className="w-full py-2.5 bg-rose-650 hover:bg-rose-600 text-white rounded-xl text-xs font-black transition-all cursor-pointer hover:shadow-[0_4px_12px_rgba(225,29,72,0.25)] text-center flex items-center justify-center gap-1.5"
+                >
+                  Delete Completely 🗑️
+                </button>
+                <button
+                  type="button"
                   onClick={() => setActivityToDelete(null)}
-                  className="w-full py-2 bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-400 rounded-xl text-xs font-bold transition-all cursor-pointer text-center"
+                  className="w-full py-2 bg-slate-905 hover:bg-slate-900 border border-slate-800 text-slate-400 rounded-xl text-xs font-bold transition-all cursor-pointer text-center mt-1"
                 >
                   Close / Nevermind
                 </button>
