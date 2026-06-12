@@ -1766,61 +1766,65 @@ export default function App() {
     if (notifications.length > lastNotificationsCountRef.current) {
       const latestNotif = notifications[0];
       if (latestNotif && !latestNotif.isRead) {
-        // 1. Trigger the premium, high-fidelity in-app sliding banner
-        setActiveToast({
-          id: latestNotif.id,
-          title: latestNotif.title,
-          body: latestNotif.body,
-          type: latestNotif.type || 'info'
-        });
+        // Prevent notifications from a department from popping up on another department's dashboard
+        const isTargetedForThisDept = !latestNotif.departmentId || latestNotif.departmentId === matchedDepartment?.id;
+        if (isTargetedForThisDept) {
+          // 1. Trigger the premium, high-fidelity in-app sliding banner
+          setActiveToast({
+            id: latestNotif.id,
+            title: latestNotif.title,
+            body: latestNotif.body,
+            type: latestNotif.type || 'info'
+          });
 
-        // 2. Trigger actual device/native popup notification on iOS and Android devices if permission is granted
-        const title = latestNotif.title;
-        const options = {
-          body: latestNotif.body,
-          icon: '/logo-192.png',
-          badge: '/logo-192.png',
-          tag: latestNotif.id || 'ich-alert',
-          data: {
-            url: window.location.origin + '/'
-          }
-        };
+          // 2. Trigger actual device/native popup notification on iOS and Android devices if permission is granted
+          const title = latestNotif.title;
+          const options = {
+            body: latestNotif.body,
+            icon: '/logo-192.png',
+            badge: '/logo-192.png',
+            tag: latestNotif.id || 'ich-alert',
+            data: {
+              url: window.location.origin + '/'
+            }
+          };
 
-        if ('Notification' in window && Notification.permission === 'granted') {
-          // Trigger actual device/native system popup notification in any position (foreground or background)
-          if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.ready
-              .then(async (reg) => {
-                try {
-                  await reg.showNotification(title, options);
-                  console.log('[AppClient] Successfully served native PWA popup notification on device.');
-                } catch (notifErr) {
-                  console.warn('[AppClient] SW showNotification failed, using fallback standard Notification API:', notifErr);
+          if ('Notification' in window && Notification.permission === 'granted') {
+            // Trigger actual device/native system popup notification in any position (foreground or background)
+            if ('serviceWorker' in navigator) {
+              navigator.serviceWorker.ready
+                .then(async (reg) => {
+                  try {
+                    await reg.showNotification(title, options);
+                    console.log('[AppClient] Successfully served native PWA popup notification on device.');
+                  } catch (notifErr) {
+                    console.warn('[AppClient] SW showNotification failed, using fallback standard Notification API:', notifErr);
+                    try {
+                      new Notification(title, options);
+                    } catch (e) {}
+                  }
+                })
+                .catch(() => {
                   try {
                     new Notification(title, options);
                   } catch (e) {}
-                }
-              })
-              .catch(() => {
-                try {
-                  new Notification(title, options);
-                } catch (e) {}
-              });
-          } else {
-            try {
-              new Notification(title, options);
-            } catch (e) {}
+                });
+            } else {
+              try {
+                new Notification(title, options);
+              } catch (e) {}
+            }
           }
-        }
 
-        // 2. Play the synthesized mobile notice double chime
-        playNotificationSound();
+          // 2. Play the synthesized mobile notice double chime
+          playNotificationSound();
 
-        // 3. Trigger native mobile vibration for tactical feedback on Android
-        if ('vibrate' in navigator) {
-          try {
-            navigator.vibrate([80, 50, 80]);
-          } catch (vibErr) {}
+          // 3. Trigger native mobile vibration for tactical feedback on Android
+          if ('vibrate' in navigator) {
+            try {
+              navigator.vibrate([80, 50, 80]);
+            } catch (vibErr) {}
+          }
         }
       }
     }
