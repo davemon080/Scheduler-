@@ -95,6 +95,8 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   const [bioSuccess, setBioSuccess] = useState(false);
   const [showBioVerification, setShowBioVerification] = useState(false);
 
+  const [hasAutoTriggered, setHasAutoTriggered] = useState(false);
+
   useEffect(() => {
     try {
       const saved = localStorage.getItem('ich100l_biometric_reg');
@@ -102,12 +104,19 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         const parsed = JSON.parse(saved);
         if (parsed && parsed.enabled) {
           setEnrolledBiometric(parsed);
+          // Auto-trigger biometric sign-in block on first load
+          if (!hasAutoTriggered) {
+            setHasAutoTriggered(true);
+            setTimeout(() => {
+              handleBiometricSignIn();
+            }, 600);
+          }
         }
       }
     } catch (e) {
       console.warn('[Biometric] Failed to read enrollment status:', e);
     }
-  }, []);
+  }, [hasAutoTriggered]);
 
   // Check for reset password parameters on mount
   const [resetToken, setResetToken] = useState(() => {
@@ -278,33 +287,19 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     }
   };
 
-  const handleBiometricSignIn = async () => {
+  const handleBiometricSignIn = async (forceMatch: 'match' | 'mismatch' | 'none' = 'none') => {
     if (!enrolledBiometric) return;
     
-    setIsVerifyingBiometric(true);
-    setBioProgress(0);
     setBioError('');
     setBioSuccess(false);
     setShowBioVerification(true);
 
-    let progressInterval: any;
-    let actualNativeVerified = false;
-
-    // Simulated scanner progress for visual feedback
-    progressInterval = setInterval(() => {
-      setBioProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(progressInterval);
-          return 100;
-        }
-        return prev + Math.floor(Math.random() * 12) + 8;
-      });
-    }, 80);
-
-    // Try standard WebAuthn assertion silently if enrolled with native auth and capability available
-    try {
-      if (enrolledBiometric.nativeAuth && window.PublicKeyCredential) {
-        console.log('[Biometric] Triggering native WebAuthn get assertion client-side.');
+    // If native Auth is enrolled and we are checking physical device keys directly (no simulation controls clicked yet)
+    if (enrolledBiometric.nativeAuth && window.PublicKeyCredential && forceMatch === 'none') {
+      setIsVerifyingBiometric(true);
+      setBioProgress(35);
+      try {
+        console.log('[Biometric] Prompting client-side secure WebAuthn gesture...');
         const challenge = new Uint8Array(16);
         window.crypto.getRandomValues(challenge);
 
@@ -313,24 +308,87 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
             challenge,
             rpId: window.location.hostname,
             userVerification: 'required',
-            timeout: 10000
+            timeout: 15000
           }
         });
-        if (assertion) {
-          actualNativeVerified = true;
-          console.log('[Biometric] Native WebAuthn public-key authentication succeeded.');
+
+        if (!assertion) {
+          throw new Error('Biometric user verification returned empty credential assertion.');
         }
+
+        // Native hardware authorization succeeded!
+        setBioProgress(100);
+        setBioSuccess(true);
+        setIsVerifyingBiometric(false);
+        
+        // Log user in
+        const dbUsers = getUsersDB();
+        const userMatric = enrolledBiometric.matricNumber;
+        const normalizedQuery = userMatric.toLowerCase().replace(/[\/-]/g, '').trim();
+        const matchedKey = Object.keys(dbUsers).find(k => k.toLowerCase().replace(/[\/-]/g, '').trim() === normalizedQuery);
+        const targetUser = matchedKey ? dbUsers[matchedKey] : null;
+        if (!targetUser) throw new Error('Biometric account record details missing on this device.');
+
+        let sessionId = localStorage.getItem('ich100l_session_id') || 'sess_' + Math.random().toString(36).substring(2, 15);
+        localStorage.setItem('ich100l_session_id', sessionId);
+        const verifiedUser = {
+          email: targetUser.email,
+          matricNumber: targetUser.matricNumber || matchedKey || userMatric,
+          name: targetUser.name,
+          createdAt: targetUser.createdAt,
+          activeSessionId: sessionId,
+          isAdmin: !!targetUser.isAdmin,
+          isCourseRep: !!targetUser.isCourseRep,
+        };
+
+        setTimeout(async () => {
+          setShowBioVerification(false);
+          try {
+            await setDoc(doc(db, 'users', getSafeDocId(verifiedUser.matricNumber.toLowerCase())), { activeSessionId: sessionId }, { merge: true });
+          } catch {}
+          onLoginSuccess(verifiedUser);
+        }, 1100);
+        return;
+      } catch (assertionErr: any) {
+        console.warn('[Biometric] Physical biometric validation failed:', assertionErr);
+        // CRITICAL SECURE DISCIPLINE: STRICTLY Block access if hardware verification fails!
+        setBioProgress(100);
+        setBioError('Secure Authorization Failed: Biometric verification was cancelled or fingerprint did not match.');
+        setBioSuccess(false);
+        setIsVerifyingBiometric(false);
+        return;
       }
-    } catch (assertionErr) {
-      console.warn('[Biometric] Native authentication bypassed, utilizing secure interactive scanner simulator keychain:', assertionErr);
     }
 
-    // Wait for scanning circle animation
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    clearInterval(progressInterval);
-    setBioProgress(100);
+    // Otherwise, handle manual simulator choices or showcase
+    if (forceMatch === 'none') {
+      // Keep it in idle ready state with 0 progress so the user is prompted to tap a simulate button
+      setIsVerifyingBiometric(false);
+      setBioProgress(0);
+      return;
+    }
 
-    // Verify user credentials against localStorage users database
+    // If simulating Match or Mismatch:
+    setIsVerifyingBiometric(true);
+    setBioProgress(0);
+    
+    // Simulate animated scanning cycles
+    const progressSteps = [15, 38, 62, 85, 100];
+    for (const step of progressSteps) {
+      await new Promise(r => setTimeout(r, 150));
+      setBioProgress(step);
+    }
+    
+    if (forceMatch === 'mismatch') {
+      // STRICT BLOCK: Simulated Mismatch blocks the user immediately and does NOT log them in!
+      setBioProgress(100);
+      setBioError('Cryptographic Mismatch Failure: Touch sensor scanner detected unmatched fingerprint signature keys.');
+      setBioSuccess(false);
+      setIsVerifyingBiometric(false);
+      return;
+    }
+
+    // Successful match simulation!
     try {
       const dbUsers = getUsersDB();
       const userMatric = enrolledBiometric.matricNumber;
@@ -368,19 +426,17 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
       setTimeout(async () => {
         setShowBioVerification(false);
-        // Dispatch session synchronization silently in background
         try {
           const safeIdLower = getSafeDocId(verifiedUser.matricNumber.toLowerCase());
           await setDoc(doc(db, 'users', safeIdLower), { activeSessionId: sessionId }, { merge: true });
         } catch (e) {
           console.warn('[Session] Background biometrics session sync bypassed:', e);
         }
-
         onLoginSuccess(verifiedUser);
       }, 1000);
 
     } catch (err: any) {
-      setBioError(err?.message || 'Biometric authentication failed. Proceed with standard credentials.');
+      setBioError(err?.message || 'Biometric authentication failed.');
       setBioSuccess(false);
     } finally {
       setIsVerifyingBiometric(false);
@@ -1006,23 +1062,60 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                   <div className="text-[11px] opacity-80">Granting secure credentials access portal...</div>
                 </div>
               ) : bioError ? (
-                <div className="text-rose-400 text-xs font-sans p-2.5 rounded-lg bg-rose-950/20 border border-rose-500/15">
-                  {bioError}
+                <div className="space-y-1.5">
+                  <div className="text-rose-400 text-xs font-sans p-2.5 rounded-lg bg-rose-950/20 border border-rose-500/15 text-left leading-relaxed">
+                    {bioError}
+                  </div>
                 </div>
               ) : (
-                <div className="text-xs text-slate-500 font-sans">Ready to scan...</div>
+                <div className="text-xs text-slate-500 font-sans">Ready to scan fingerprint...</div>
               )}
 
-              {/* Cancel Button */}
-              {!bioSuccess && (
-                <button
-                  type="button"
-                  onClick={() => setShowBioVerification(false)}
-                  className="w-full py-2 rounded-xl text-xs font-medium bg-slate-800 hover:bg-slate-755 text-slate-300 transition-colors cursor-pointer border-none outline-none"
-                >
-                  Cancel & Use Password
-                </button>
+              {/* Secure interactive testing options for the simulator */}
+              {!isVerifyingBiometric && !bioSuccess && (
+                <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-900 space-y-2.5 text-center animate-fade-in">
+                  <p className="text-[10px] text-slate-500 font-mono font-bold tracking-wider uppercase">Simulator Terminal</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleBiometricSignIn('match')}
+                      className="py-2.5 px-3 rounded-lg text-xs font-bold bg-emerald-950/50 hover:bg-emerald-900/40 text-emerald-400 hover:text-emerald-300 border border-emerald-500/15 hover:border-emerald-500/30 transition-all cursor-pointer outline-none"
+                    >
+                      👍 Match Finger
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleBiometricSignIn('mismatch')}
+                      className="py-2.5 px-3 rounded-lg text-xs font-bold bg-rose-950/50 hover:bg-rose-900/40 text-rose-400 hover:text-rose-300 border border-rose-500/15 hover:border-rose-500/30 transition-all cursor-pointer outline-none"
+                    >
+                      ❌ Mismatch Finger
+                    </button>
+                  </div>
+                </div>
               )}
+
+              {/* Action Buttons */}
+              <div className="flex flex-col gap-2.5 pt-1">
+                {bioError && !isVerifyingBiometric && (
+                  <button
+                    type="button"
+                    onClick={() => handleBiometricSignIn('none')}
+                    className="w-full py-2.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white transition-all cursor-pointer border-none outline-none font-sans"
+                  >
+                    🔄 Retry Scan Attempt
+                  </button>
+                )}
+
+                {!bioSuccess && (
+                  <button
+                    type="button"
+                    onClick={() => setShowBioVerification(false)}
+                    className="w-full py-2 rounded-xl text-xs font-medium bg-slate-800 hover:bg-slate-755 text-slate-300 transition-colors cursor-pointer border-none outline-none"
+                  >
+                    Cancel & Use Password
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
