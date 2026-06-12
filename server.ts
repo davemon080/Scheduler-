@@ -328,7 +328,14 @@ app.use("/uploads", express.static(uploadDir));
       pushSubsSnap.docs.forEach((docSnap) => {
         const data = docSnap.data();
         if (data.subscription && data.subscription.endpoint) {
-          unifiedTargetsMap.set(data.subscription.endpoint, {
+          // Cryptographic key deduplication to prevent duplicate alerts on the same device.
+          // Unique keys inside PWA rely on keys.p256dh which is constant for a given browser profile,
+          // avoiding multiple signals triggered by cookie clearance or duplicate registration ids.
+          const subKey = (data.subscription.keys && data.subscription.keys.p256dh) 
+            ? String(data.subscription.keys.p256dh).trim() 
+            : String(data.subscription.endpoint).trim();
+
+          unifiedTargetsMap.set(subKey, {
             id: docSnap.id,
             source: "push-subscriptions",
             subscription: data.subscription,
@@ -336,6 +343,7 @@ app.use("/uploads", express.static(uploadDir));
             name: data.name || "Guest",
             isStandalone: !!data.isStandalone,
             platform: data.platform || "Web",
+            departmentId: data.departmentId || null,
           });
         }
       });
@@ -344,9 +352,13 @@ app.use("/uploads", express.static(uploadDir));
       devicesSnap.docs.forEach((docSnap) => {
         const data = docSnap.data();
         if (data.subscription && data.subscription.endpoint) {
-          const existing = unifiedTargetsMap.get(data.subscription.endpoint);
+          const subKey = (data.subscription.keys && data.subscription.keys.p256dh) 
+            ? String(data.subscription.keys.p256dh).trim() 
+            : String(data.subscription.endpoint).trim();
+
+          const existing = unifiedTargetsMap.get(subKey);
           const isStandalone = !!data.isStandalone || (existing ? !!existing.isStandalone : false);
-          unifiedTargetsMap.set(data.subscription.endpoint, {
+          unifiedTargetsMap.set(subKey, {
             id: existing ? existing.id : docSnap.id,
             source: existing ? `${existing.source}+devices` : "devices",
             subscription: data.subscription,
@@ -354,6 +366,7 @@ app.use("/uploads", express.static(uploadDir));
             name: data.name || (existing ? existing.name : "Guest"),
             isStandalone,
             platform: data.platform || (existing ? existing.platform : "Web"),
+            departmentId: data.departmentId || (existing ? existing.departmentId : null),
           });
         }
       });

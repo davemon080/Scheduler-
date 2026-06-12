@@ -242,6 +242,7 @@ export default function AddEditPage({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setFormError('');
     setSuccessMsg('');
     setIsSubmitting(true);

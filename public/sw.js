@@ -195,20 +195,16 @@ self.addEventListener('push', (event) => {
 
   console.log('[PWA SW] Triggering showNotification via self.registration instance. Title:', data.title, 'Options:', options);
 
-  const notificationPromise = self.clients.matchAll({ type: 'window', includeUncontrolled: true })
-    .then((clientList) => {
-      const hasFocusedClient = clientList.some(client => client.focused);
-      if (hasFocusedClient) {
-        console.log('[PWA SW] App is active and focused in the foreground. Skipped native push alert to prevent duplicated notifications.');
-        return;
-      }
-      return self.registration.showNotification(data.title || 'ICH 100L Alerts 🔔', options)
-        .then(() => {
-          console.log('[PWA SW] showNotification completed successfully.');
-        });
+  // CRITICAL iOS 16.4+ FIXED: iOS background push notifications MUST synchronously trigger and return 
+  // self.registration.showNotification immediately from the main execution cycle in the 'push' event listener.
+  // Any preliminary asynchronous calls (like self.clients.matchAll or local fetch calls) will cause the iOS
+  // background push daemon to terminate the background worker thread, resulting in completely missed background alerts!
+  const notificationPromise = self.registration.showNotification(data.title || 'ICH 100L Alerts 🔔', options)
+    .then(() => {
+      console.log('[PWA SW] showNotification completed successfully.');
     })
     .catch((err) => {
-      console.error('[PWA SW] showNotification check or execution failed with error:', err);
+      console.error('[PWA SW] showNotification execution failed with error:', err);
     });
 
   // Safe App Badge Update
